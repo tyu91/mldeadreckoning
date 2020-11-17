@@ -36,26 +36,13 @@ with open(filename) as csvfile:
                 # sometimes the last row is incomplete
                 pass
 
-# Data description
-#  Time
-#  AccX_HP - high precision acceleration signal
-#  AccX_LP - low precision acceleration signal
-#  RefPosX - real position (ground truth)
-#  RefVelX - real velocity (ground truth)
 
-# switch between two acceleration signals
-use_HP_signal = 1
-
-if use_HP_signal:
-    AccX_Value = AccX_HP
-    AccX_Variance = 0.0007
-else:    
-    AccX_Value = AccX_LP
-    AccX_Variance = 0.0020
-
+AccX_Variance = 0.0003540587547858434
+AccY_Variance = 0.0002449532048789089
+AccZ_Variance = 7.366738104144485e-05
 
 # time step
-dt = 0.01
+dt = 0.004 #250Hz
 
 # transition_matrix  
 F = [[1, dt, 0.5*dt**2], 
