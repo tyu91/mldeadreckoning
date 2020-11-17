@@ -43,16 +43,8 @@ with open(filename) as csvfile:
 #  RefPosX - real position (ground truth)
 #  RefVelX - real velocity (ground truth)
 
-# switch between two acceleration signals
-use_HP_signal = 1
-
-if use_HP_signal:
-    AccX_Value = AccX_HP
-    AccX_Variance = 0.0007
-else:    
-    AccX_Value = AccX_LP
-    AccX_Variance = 0.0020
-
+AccX_Value = AccX_HP
+AccX_Variance = 0.0007
 
 # time step
 dt = 0.01
