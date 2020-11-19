@@ -45,7 +45,7 @@ if __name__ == "__main__":
     elif len(sys.argv) == 1:
         import pdb; pdb.set_trace()
         for fname in os.listdir("csv"):
-            infile = os.path.join(sys.path[0], "csv", fname)
+            infile = os.path.join(sys.path[0], "csv", "50hz",fname)
             outfile = os.path.join(sys.path[0], "gpx", fname.replace(".csv", ".gpx"))
             convert_to_gpx(infile, outfile)
     else:

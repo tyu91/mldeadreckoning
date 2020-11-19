@@ -9,6 +9,8 @@ import csv
 import os
 import sys
 
+window_size = 50
+
 def rotate_vector(base, rotation):
     # https://stackoverflow.com/questions/34050929/3d-point-rotation-algorithm/34060479
     
@@ -64,42 +66,21 @@ def plot3(xs, ys, zs, plotted_value):
 
     plt.show()
 
-def compute_transformed(axs, ays, azs, rxs, rys, rzs):
-    window_size = 250
+def compute_windowed_acc_and_vel(axs, ays, azs, rxs, rys, rzs, rolling=False):
     prev_i = 0
-    windowed_ax = []
-    windowed_ay = []
-    windowed_az = []
-    windowed_rx = []
-    windowed_ry = []
-    windowed_rz = []
-    vxs = []
-    vys = []
-    vzs = []
+    correction_x = 0.054
+    correction_y = 0.55
+    correction_z = 0.855
+    axs = [float(x) + correction_x for x in axs]
+    ays = [float(x) + correction_y for x in ays]
+    azs = [float(x) + correction_z for x in azs]
 
-    for i in range(window_size, len(axs) - 1, window_size):
-        windowed_ax.append(np.average(np.array([float(x) for x in axs[prev_i:i]])))
-        windowed_ay.append(np.average(np.array([float(x) for x in ays[prev_i:i]])))
-        windowed_az.append(np.average(np.array([float(x) for x in azs[prev_i:i]])))
-
-        windowed_rx.append(np.average(np.array([float(x) for x in rxs[prev_i:i]])))
-        windowed_ry.append(np.average(np.array([float(x) for x in rys[prev_i:i]])))
-        windowed_rz.append(np.average(np.array([float(x) for x in rzs[prev_i:i]])))
-        
-        vxs.append(np.sum(np.array([((1.0 / window_size) * float(x) * 9.8) for x in axs[prev_i:i]])))
-        vys.append(np.sum(np.array([((1.0 / window_size) * float(x) * 9.8) for x in ays[prev_i:i]])))
-        vzs.append(np.sum(np.array([((1.0 / window_size) * float(x) * 9.8) for x in azs[prev_i:i]])))
-
-        prev_i = i
-
-    axs = windowed_ax
-    ays = windowed_ay
-    azs = windowed_az
-    rxs = windowed_rx
-    rys = windowed_ry
-    rzs = windowed_rz
+    rxs = [float(x) for x in rxs]
+    rys = [float(x) for x in rys]
+    rzs = [float(x) for x in rzs]
 
     t_accs = []
+
     for i in range(len(axs)):
         try:
             t_accs.append(rotate_vector([axs[i], ays[i], azs[i]], [rxs[i], rys[i], rzs[i]]))
@@ -107,9 +88,43 @@ def compute_transformed(axs, ays, azs, rxs, rys, rzs):
             pass
 
     t_accs = np.array(t_accs)
-    t = np.arange(0, len(t_accs))
+    axs = t_accs[:, 0]
+    ays = t_accs[:, 1]
+    azs = t_accs[:, 2]
 
-    return t_accs[:, 0], t_accs[:, 1], t_accs[:, 2], vxs, vys, vzs
+    windowed_ax = []
+    windowed_ay = []
+    windowed_az = []
+    vxs = []
+    vys = []
+    vzs = []
+
+    if (rolling):
+        for i in range(0, len(axs) - 1 - window_size):
+            windowed_ax.append(np.average(np.array([float(x) for x in axs[i:i + window_size]])))
+            windowed_ay.append(np.average(np.array([float(x) for x in ays[i:i + window_size]])))
+            windowed_az.append(np.average(np.array([float(x) for x in azs[i:i + window_size]])))
+            
+            vxs.append(np.sum(np.array([((1.0 / window_size) * float(x) * 9.8) for x in axs[i:i + window_size]])))
+            vys.append(np.sum(np.array([((1.0 / window_size) * float(x) * 9.8) for x in ays[i:i + window_size]])))
+            vzs.append(np.sum(np.array([((1.0 / window_size) * float(x) * 9.8) for x in azs[i:i + window_size]])))
+    else:
+        for i in range(window_size, len(axs) - 1, window_size):
+            windowed_ax.append(np.average(np.array([float(x) for x in axs[prev_i:i]])))
+            windowed_ay.append(np.average(np.array([float(x) for x in ays[prev_i:i]])))
+            windowed_az.append(np.average(np.array([float(x) for x in azs[prev_i:i]])))
+            
+            vxs.append(np.sum(np.array([((1.0 / window_size) * float(x) * 9.8) for x in axs[prev_i:i]])))
+            vys.append(np.sum(np.array([((1.0 / window_size) * float(x) * 9.8) for x in ays[prev_i:i]])))
+            vzs.append(np.sum(np.array([((1.0 / window_size) * float(x) * 9.8) for x in azs[prev_i:i]])))
+
+            prev_i = i
+
+    axs = windowed_ax
+    ays = windowed_ay
+    azs = windowed_az
+
+    return axs, ays, azs, vxs, vys, vzs
 
 def plot_a_v(axs, ays, azs, vxs, vys, vzs):
     t1a = np.arange(0, len(axs))
@@ -149,12 +164,20 @@ def plot_3d(axs, ays, azs):
     ax.legend()
     plt.show()
 
+    # axs = [float(x) for x in axs]
+    # ays = [float(x) for x in ays]
+    # azs = [float(x) for x in azs]
+    # plt.plot(ays, azs)
+    # plt.show()
+
 
 if __name__ == "__main__":
     # filename = os.path.join(sys.path[0], "csv", os.listdir("csv")[2])
     # filename = os.path.join(sys.path[0], "csv", "Sun Nov 15 18_01_53 2020.csv")
     # filename = os.path.join(sys.path[0], "csv", "Sun Nov 15 18_22_35 2020.csv")
-    filename = os.path.join(sys.path[0], "csv", "Sun Nov 15 17_52_12 2020.csv")
+    relative_filename = "Sun Nov 15 17_52_12 2020.csv"
+    # relative_filename = "stationary-Thu Nov 19 14_05_11 2020.csv"
+    filename = os.path.join(sys.path[0], "csv", "50hz", relative_filename)
 
     axs = []
     ays = []
@@ -168,11 +191,12 @@ if __name__ == "__main__":
     with open(filename) as csvfile:
         reader = csv.reader(csvfile)
 
-        first = True
+        start = 1
+        start_iter = 0
             
         for row in reader:
-            if first:
-                first = False
+            if start_iter < start:
+                start_iter += 1
                 continue
             try:
                 axs.append(row[0])
@@ -186,8 +210,15 @@ if __name__ == "__main__":
                 rzs.append(row[8])
             except:
                 pass
-        axs, ays, azs, vxs, vys, vzs = compute_transformed(axs, ays, azs, rxs, rys, rzs)
-        # plot3(axs, ays, azs, "a")
-        # plot3(vxs, vys, vzs, "v")
+        is_rolling = False
+        axs, ays, azs, vxs, vys, vzs = compute_windowed_acc_and_vel(axs, ays, azs, rxs, rys, rzs, is_rolling)
         plot_a_v(axs, ays, azs, vxs, vys, vzs)
         plot_3d(axs, ays, azs)
+        # import pdb; pdb.set_trace()
+        rolling_word = "with Rolling Window " if is_rolling else "with Average Window "
+        with open(os.path.join(sys.path[0], "imu_vs", "velocity " + rolling_word + relative_filename), "w") as v_outfile:
+            writer = csv.writer(v_outfile)
+            writer.writerow(["vxs", "vys", "vzs"])
+            row_vs = [list(elem) for elem in list(zip(vxs, vys, vzs))]
+            writer.writerows(row_vs)
+
