@@ -7,14 +7,14 @@ from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import matplotlib.pyplot as plt
 
-filename = os.path.join(sys.path[0][:-7], "data/imu_vs/velocity Sun Nov 15 17_52_12 2020.csv")
+filename = os.path.join(sys.path[0][:-7], "data/imu_vs/velocity with Average Window Sun Nov 15 17_52_12 2020.csv")
 
 print(filename)
 
 df = pd.read_csv(filename)
 print(df.shape)
 
-dt = 1 #1Hz
+dt = 0.5 #1Hz
 
 vxs = []
 vys = []
@@ -50,7 +50,7 @@ t = np.arange(0, len(pos_x))
 mpl.rcParams['legend.fontsize'] = 10
 fig = plt.figure()
 ax = fig.gca(projection='3d')
-ax.plot(pos_x, pos_y, pos_z,label='position curve')
+ax.plot(pos_x, pos_y,label='position curve')
 ax.legend()
 plt.show()
 
