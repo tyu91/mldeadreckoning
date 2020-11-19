@@ -3,7 +3,7 @@ import csv
 import os
 import sys
 
-filename = os.path.join(sys.path[0], "still.csv")
+filename = os.path.join(sys.path[0], "csv/stationary-Wed Nov 18 20_52_35 2020.csv")
 print(filename)
 
 df = pd.read_csv(filename)

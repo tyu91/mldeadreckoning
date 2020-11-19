@@ -58,7 +58,7 @@ Q = [[0.2,    0,      0],
      [  0,    0,  10e-4]]
 
 # observation_covariance 
-R = AccX_Variance
+R = np.diag([sig_x2, sig_y2, sig_alpha2])
 
 # initial_state_mean
 X0 = [0,
