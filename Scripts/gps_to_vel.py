@@ -10,7 +10,7 @@ from pathlib import Path
 basepath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def calc_velocity(filepath):
+def calc_velocity(filepath, filename):
     dt = 1 # to be changed later cuz were only sampling at 1Hz
     alt = []
     lat_lon = []
@@ -65,18 +65,27 @@ def calc_velocity(filepath):
         # print("\n")
 
     # write to csv
-    csvname = filepath[:-4] + "_gps_vel.csv"
+    csvname = os.path.join(basepath, "data", "gps_vs", filename[:-4] + "_gps_vel.csv")
     print(csvname)
+    velx = velx[1:]
+    vely = vely[1:]
+    velz = velz[1:]
     with open(csvname, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
         for i in range(len(velx)):
             writer.writerow([velx[i],vely[i], velz[i]])
 
 if __name__ == "__main__":
-    directory = os.path.join(basepath, "data","csv")
-    print(directory)
-    for filename in os.listdir(directory):
+    directory_50 = os.path.join(basepath, "data","csv", "50hz")
+
+    for filename in os.listdir(directory_50):
         if(filename.endswith(".csv")):
-            filepath = os.path.join(directory, filename)
-            calc_velocity(filepath)
+            filepath = os.path.join(directory_50, filename)
+            calc_velocity(filepath, filename)
+
+    directory_200 = os.path.join(basepath, "data","csv", "200hz")
+    for filename in os.listdir(directory_200):
+        if(filename.endswith(".csv")):
+            filepath = os.path.join(directory_200, filename)
+            calc_velocity(filepath, filename)
     
