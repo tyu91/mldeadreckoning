@@ -76,8 +76,8 @@ def calc_velocity(filepath, filename):
             writer.writerow([velx[i],vely[i], velz[i]])
 
 if __name__ == "__main__":
-    directory_50 = os.path.join(basepath, "data","csv", "50hz")
 
+    directory_50 = os.path.join(basepath, "data","csv", "50hz")
     for filename in os.listdir(directory_50):
         if(filename.endswith(".csv")):
             filepath = os.path.join(directory_50, filename)

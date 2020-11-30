@@ -224,16 +224,19 @@ if __name__ == "__main__":
     # set these flags to change settings
     is_rolling = True # rolling window or average window flag
     is_50hz = False # is data sampled at 50hz or 200hz
-    show_plots = False # show plots or not (if looping through, better not to)
+    show_plots = True # show plots or not (if looping through, better not to)
+    single_file = False # only process data for a single file vs. all of the files
 
     hz_string = "50hz" if is_50hz else "200hz"
     basepath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     hz_directory = os.path.join(basepath, "data", "csv", hz_string)
-
-    # relative_filename = "Sun Nov 15 17_52_12 2020.csv" # 4 right turns 50hz
-    # relative_filename = "stationary-Thu Nov 19 14_05_11 2020.csv" # stationary 200hz
-    for relative_filename in os.listdir(hz_directory):
+    if single_file:
+        relative_filenames = ["Sun Nov 15 17_52_12 2020.csv"] # 4 right turns 50hz
+        # relative_filename = "stationary-Thu Nov 19 14_05_11 2020.csv" # stationary 200hz
+    else:
+        relative_filenames = os.listdir(hz_directory)
+    for relative_filename in relative_filenames:
         
         filename = os.path.join(basepath, "data", "csv", hz_string, relative_filename)
 
