@@ -213,14 +213,6 @@ def plot_a_v(axs, ays, azs, vxs, vys, vzs):
 
     plt.show()
 
-def plot_3d(axs, ays, azs):
-    mpl.rcParams['legend.fontsize'] = 10
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    ax.plot(axs, ays, azs, label='parametric curve')
-    ax.legend()
-    plt.show()
-
 
 if __name__ == "__main__":
     # set these flags to change settings
@@ -245,7 +237,11 @@ if __name__ == "__main__":
         axs, ays, azs, vxs, vys, vzs = compute_windowed_acc_and_vel(axs, ays, azs, rxs, rys, rzs, is_rolling, is_50hz)
         if show_plots:
             plot_a_v(axs, ays, azs, vxs, vys, vzs)
-            plot_3d(vxs, vys, vzs)
+            plot3d(
+                xyzs=[(vxs, vys, vzs)],
+                labels=["plotted imu velocities"],
+                title=relative_filename
+            )
 
         rolling_word = "rolling_window" if is_rolling else "average_window"
         output_filename = os.path.join(get_basepath(), "data", "imu_vs", relative_filename[:-4] + "_imu_vel_" + rolling_word + ".csv")

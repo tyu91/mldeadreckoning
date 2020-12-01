@@ -102,15 +102,13 @@ if __name__ == "__main__":
         imu_t = np.arange(0, len(imu_pxs))
         gps_t = np.arange(0, len(gps_pxs))
 
-        mpl.rcParams['legend.fontsize'] = 10
-        fig = plt.figure()
-        # ax = fig.gca(projection='3d')
-        plt.plot(imu_pxs, imu_pys,label='positions from imu velocity curve')
-        plt.plot(gps_pxs, gps_pys,label='positions from gps velocity curve')
-        plt.title(base_filename)
-        plt.legend()
-        plt.show()
+        plot3d(
+                xyzs=[(imu_pxs, imu_pys, imu_pzs), (gps_pxs, gps_pys, gps_pzs)],
+                labels=["positions from imu velocity curve", "positions from gps velocity curve"],
+                title=base_filename
+            )
 
+        # if in tag files mode
         if tag_files:
             description = input("Please enter a description for this file\n")
             if len(description) > 0:

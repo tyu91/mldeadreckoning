@@ -196,15 +196,15 @@ class SimpleNetwork(nn.Module):
             gps_pxs, gps_pys, gps_pzs = get_xyz_poses(gps_vxs, gps_vys, gps_vzs, 1.0 / self.gps_freq)         
 
             # plot xyz positions
-            mpl.rcParams['legend.fontsize'] = 10
-            fig = plt.figure()
-            ax = fig.gca(projection='3d')
-            ax.plot(raw_imu_pxs, raw_imu_pys, raw_imu_pzs, label='positions from raw imu velocity curve')
-            ax.plot(imu_pxs, imu_pys, imu_pzs, label='positions from imu velocity curve')
-            ax.plot(gps_pxs, gps_pys, gps_pzs, label='positions from gps velocity curve')
-            ax.legend()
-            plt.title(basename)
-            plt.show()
+            plot3d(
+                xyzs=[(raw_imu_pxs, raw_imu_pys, raw_imu_pzs), \
+                      (imu_pxs, imu_pys, imu_pzs), \
+                      (gps_pxs, gps_pys, gps_pzs)],
+                labels=["positions from raw imu velocity curve", \
+                        "positions from imu velocity curve", \ 
+                        "positions from gps velocity curve"],
+                title=basename
+            )
 
     def save_model(self, modelname):
         if not os.path.exists(os.path.join(self.basepath, "models")):
