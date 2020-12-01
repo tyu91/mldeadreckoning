@@ -9,6 +9,7 @@ import json
 import datetime
 
 from odometry import *
+from utils import *
 
 class VelocityDataset(Dataset):
     """Initialize dataset for xyz velocities
@@ -56,7 +57,9 @@ class VelocityDataset(Dataset):
                         self.gps_velocities = np.concatenate([self.gps_velocities, gps_window], axis=0)
                 except:
                     pass
-
+        #TODO: figure out better way to parse velocity files
+        self.imu_velocities = np.abs(self.imu_velocities)
+        self.gps_velocities = np.abs(self.gps_velocities)
         self.transform = transform
 
     def __len__(self):
@@ -78,10 +81,10 @@ class SimpleNetwork(nn.Module):
         :imu_freq (optional): imu frequency, default=50\n
         :gps_freq (optional): gps frequency.
     """
-    def __init__(self, basepath, imu_freq=50, gps_freq=1):
+    def __init__(self, imu_freq=50, gps_freq=1):
         super().__init__()
         
-        self.basepath = basepath
+        self.basepath = get_basepath()
         self.imu_freq = imu_freq
         self.gps_freq = gps_freq
 
@@ -195,11 +198,12 @@ class SimpleNetwork(nn.Module):
             # plot xyz positions
             mpl.rcParams['legend.fontsize'] = 10
             fig = plt.figure()
-            plt.plot(raw_imu_pxs, raw_imu_pys,label='positions from raw imu velocity curve')
-            plt.plot(imu_pxs, imu_pys,label='positions from imu velocity curve')
-            plt.plot(gps_pxs, gps_pys,label='positions from gps velocity curve')
+            ax = fig.gca(projection='3d')
+            ax.plot(raw_imu_pxs, raw_imu_pys, raw_imu_pzs, label='positions from raw imu velocity curve')
+            ax.plot(imu_pxs, imu_pys, imu_pzs, label='positions from imu velocity curve')
+            ax.plot(gps_pxs, gps_pys, gps_pzs, label='positions from gps velocity curve')
+            ax.legend()
             plt.title(basename)
-            plt.legend()
             plt.show()
 
     def save_model(self, modelname):
@@ -213,15 +217,14 @@ class SimpleNetwork(nn.Module):
 if __name__ == "__main__":
     train_mode = False # if train_mode, train and save model, else eval_mode, evaluate on data
 
-    basepath = sys.path[0][:-7]
-
-    model = SimpleNetwork(basepath=basepath)
+    model = SimpleNetwork()
 
     if train_mode:
         model.train()
         # save model with timestamp to avoid overwriting old models
         model_name = "simplemodel_" + str(datetime.datetime.now()).split(".")[0].replace(":", ".")
         model.save_model(model_name)
+        print(model_name)
     else:
-        model.load_model("simplemodel_2020-11-30 19.15.07")
+        model.load_model("simplemodel_2020-12-01 00.16.14")
         model.evaluate()

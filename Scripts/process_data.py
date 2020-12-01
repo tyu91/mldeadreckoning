@@ -9,6 +9,8 @@ import csv
 import os
 import sys
 
+from utils import *
+
 def rotate_vector(base, rotation):
     """takes in base x, y, z acceleration and applies rotation. 
 
@@ -228,9 +230,8 @@ if __name__ == "__main__":
     single_file = False # only process data for a single file vs. all of the files
 
     hz_string = "50hz" if is_50hz else "200hz"
-    basepath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    hz_directory = os.path.join(basepath, "data", "csv", hz_string)
+    hz_directory = os.path.join(get_basepath(), "data", "csv", hz_string)
     if single_file:
         relative_filenames = ["Sun Nov 15 17_52_12 2020.csv"] # 4 right turns 50hz
         # relative_filename = "stationary-Thu Nov 19 14_05_11 2020.csv" # stationary 200hz
@@ -238,7 +239,7 @@ if __name__ == "__main__":
         relative_filenames = os.listdir(hz_directory)
     for relative_filename in relative_filenames:
         
-        filename = os.path.join(basepath, "data", "csv", hz_string, relative_filename)
+        filename = os.path.join(get_basepath(), "data", "csv", hz_string, relative_filename)
 
         axs, ays, azs, rxs, rys, rzs = parse_input_file(filename)
         axs, ays, azs, vxs, vys, vzs = compute_windowed_acc_and_vel(axs, ays, azs, rxs, rys, rzs, is_rolling, is_50hz)
@@ -247,6 +248,6 @@ if __name__ == "__main__":
             plot_3d(vxs, vys, vzs)
 
         rolling_word = "rolling_window" if is_rolling else "average_window"
-        output_filename = os.path.join(basepath, "data", "imu_vs", relative_filename[:-4] + "_imu_vel_" + rolling_word + ".csv")
+        output_filename = os.path.join(get_basepath(), "data", "imu_vs", relative_filename[:-4] + "_imu_vel_" + rolling_word + ".csv")
         write_output_file(output_filename, vxs, vys, vzs)
 

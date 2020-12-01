@@ -4,6 +4,8 @@ import csv
 import sys
 import os
 
+from utils import *
+
 def convert_to_gpx(infile, outfile):
     lats = []
     longs = []
@@ -41,13 +43,14 @@ def convert_to_gpx(infile, outfile):
 
 if __name__ == "__main__":
     is_50_hz = True
+
     hz_string = "50hz" if is_50_hz else "200hz"
     if len(sys.argv) == 3:
         convert_to_gpx(sys.argv[1], sys.argv[2])
     elif len(sys.argv) == 1:
-        for fname in os.listdir(os.path.join(sys.path[0][:-7], "data", "csv", hz_string)):
-            infile = os.path.join(sys.path[0][:-7], "data", "csv", hz_string, fname)
-            outfile = os.path.join(sys.path[0][:-7], "data", "gpx", fname.replace(".csv", ".gpx"))
+        for fname in os.listdir(os.path.join(get_basepath(), "data", "csv", hz_string)):
+            infile = os.path.join(get_basepath(), "data", "csv", hz_string, fname)
+            outfile = os.path.join(get_basepath(), "data", "gpx", fname.replace(".csv", ".gpx"))
             convert_to_gpx(infile, outfile)
     else:
         print("USAGE: python log_to_gpx.py $INFILE $OUTFILE")

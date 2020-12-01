@@ -6,8 +6,7 @@ import sys
 from collections import defaultdict
 import math
 from pathlib import Path
-
-basepath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from utils import *
 
 
 def calc_velocity(filepath, filename):
@@ -65,7 +64,7 @@ def calc_velocity(filepath, filename):
         # print("\n")
 
     # write to csv
-    csvname = os.path.join(basepath, "data", "gps_vs", filename[:-4] + "_gps_vel.csv")
+    csvname = os.path.join(get_basepath(), "data", "gps_vs", filename[:-4] + "_gps_vel.csv")
     print(csvname)
     velx = velx[1:]
     vely = vely[1:]
@@ -77,13 +76,13 @@ def calc_velocity(filepath, filename):
 
 if __name__ == "__main__":
 
-    directory_50 = os.path.join(basepath, "data","csv", "50hz")
+    directory_50 = os.path.join(get_basepath(), "data","csv", "50hz")
     for filename in os.listdir(directory_50):
         if(filename.endswith(".csv")):
             filepath = os.path.join(directory_50, filename)
             calc_velocity(filepath, filename)
 
-    directory_200 = os.path.join(basepath, "data","csv", "200hz")
+    directory_200 = os.path.join(get_basepath(), "data","csv", "200hz")
     for filename in os.listdir(directory_200):
         if(filename.endswith(".csv")):
             filepath = os.path.join(directory_200, filename)

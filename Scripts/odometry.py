@@ -8,9 +8,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import json
 
+from utils import *
+
 def get_vs_from_file(filename):
     """gets velocities from file
-    
+
     :rtype: x, y, z velocities as lists
     """
     pass
@@ -65,10 +67,8 @@ if __name__ == "__main__":
 
     gps_dt_50 = 1 # 1Hz
     gps_dt_200 = 1 # TODO: update for gps_dt_200
-
-    basepath = sys.path[0][:-7]
-    imu_vs_directory = os.path.join(basepath, "data", "imu_vs")
-    gps_vs_directory = os.path.join(basepath, "data", "gps_vs")
+    imu_vs_directory = os.path.join(get_basepath(), "data", "imu_vs")
+    gps_vs_directory = os.path.join(get_basepath(), "data", "gps_vs")
 
     gps_vs_string = "_gps_vel.csv"
 

@@ -7,7 +7,9 @@ import csv
 import os
 import sys
 
-filename = os.path.join(sys.path[0], "csv", os.listdir("csv")[0])
+from utils import *
+
+filename = os.path.join(get_basepath(), "data", "csv", os.listdir("csv")[0])
 
 axs = []
 ays = []
