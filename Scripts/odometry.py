@@ -10,6 +10,7 @@ import json
 
 def get_vs_from_file(filename):
     """gets velocities from file
+    
     :rtype: x, y, z velocities as lists
     """
     pass
@@ -57,6 +58,7 @@ def get_xyz_poses(vxs, vys, vzs, dt):
 if __name__ == "__main__":
     single_file = True # perform odometry on single file vs. all files
     tag_files = False # write tags to file
+
     # dt = 0.5 #1Hz
     imu_dt_50 = 1.0 / 50 # 50Hz
     imu_dt_200 = 1.0 / 200 # 200Hz
