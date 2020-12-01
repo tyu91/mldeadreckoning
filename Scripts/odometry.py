@@ -28,9 +28,9 @@ def get_vs_from_file(filename):
         for row in reader:
             try:
                 # TODO: take out abs once gps velocity has direction
-                vxs.append((float(row[0])))
-                vys.append((float(row[1])))
-                vzs.append((float(row[2])))
+                vxs.append(abs(float(row[0])))
+                vys.append(abs(float(row[1])))
+                vzs.append(abs(float(row[2])))
             except:
                 # sometimes the last row is incomplete
                 pass
@@ -55,8 +55,8 @@ def get_xyz_poses(vxs, vys, vzs, dt):
     return pos_x, pos_y, pos_z
 
 if __name__ == "__main__":
-    single_file = False # perform odometry on single file vs. all files
-    tag_files = True # write tags to file
+    single_file = True # perform odometry on single file vs. all files
+    tag_files = False # write tags to file
     # dt = 0.5 #1Hz
     imu_dt_50 = 1.0 / 50 # 50Hz
     imu_dt_200 = 1.0 / 200 # 200Hz
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     gps_vs_string = "_gps_vel.csv"
 
     if single_file:
-        imu_paths = ["Sun Nov 15 17_52_12 2020_imu_vel_rolling_window.csv"]
+        imu_paths = ["Sun Nov 15 18_05_03 2020_imu_vel_rolling_window.csv"]
     else:
         imu_paths = os.listdir(imu_vs_directory)
 
@@ -104,7 +104,7 @@ if __name__ == "__main__":
         fig = plt.figure()
         # ax = fig.gca(projection='3d')
         plt.plot(imu_pxs, imu_pys,label='positions from imu velocity curve')
-        # plt.plot(gps_pxs, gps_pys,label='positions from gps velocity curve')
+        plt.plot(gps_pxs, gps_pys,label='positions from gps velocity curve')
         plt.title(base_filename)
         plt.legend()
         plt.show()

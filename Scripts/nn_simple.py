@@ -1,3 +1,4 @@
+import torch
 from torch import nn, optim
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
@@ -5,6 +6,9 @@ import sys
 import os
 import numpy as np
 import json
+import datetime
+
+from odometry import *
 
 class VelocityDataset(Dataset):
     def __init__(self, tag_file, imu_vs_directory, gps_vs_directory, hz=50, transform=None):
@@ -28,8 +32,8 @@ class VelocityDataset(Dataset):
         self.imu_velocities = None # (num_samples, window_size, num_axis) where window_size = hz
         self.gps_velocities = None # (num_samples, num_axis)
         for filename, description in self.tagged_paths.items():
-            if "bolaji" not in description:
-                continue
+            # if "bolaji" not in description:
+            #     continue
 
             basename = filename.split(".gpx")[0]
 
@@ -66,13 +70,16 @@ class VelocityDataset(Dataset):
         return np.concatenate([imu_sample[:, 0], imu_sample[:, 1], imu_sample[:, 2]], axis=0), gps_sample
 
 class SimpleNetwork(nn.Module):
-    def __init__(self, imu_freq=50, gps_freq=1):
+    def __init__(self, basepath, imu_freq=50, gps_freq=1):
         super().__init__()
         
-        # Inputs to hidden layer linear transformation
-        self.input_layer_size = imu_freq * 3
-        self.hidden_layer_input_size = int(imu_freq * 2)
-        self.hidden_layer_output_size = int(imu_freq * 2)
+        self.basepath = basepath
+        self.imu_freq = imu_freq
+        self.gps_freq = gps_freq
+        # define layers
+        self.input_layer_size = self.imu_freq * 3
+        self.hidden_layer_input_size = int(self.imu_freq * 2)
+        self.hidden_layer_output_size = int(self.imu_freq)
         self.output_layer_size = 3
 
         self.input_layer = nn.Linear(self.input_layer_size, self.hidden_layer_input_size)
@@ -81,6 +88,29 @@ class SimpleNetwork(nn.Module):
         self.activation2 = nn.Sigmoid()
         self.output_layer = nn.Linear(self.hidden_layer_output_size, self.output_layer_size)
         self.activation3 = nn.ReLU()
+
+        # define dataloaders for training
+        self.imu_vs_directory = os.path.join(basepath, "data", "imu_vs")
+        self.gps_vs_directory = os.path.join(basepath, "data", "gps_vs")
+        self.train_tag_file = os.path.join(self.basepath, "resources", "train_tag_files.json")
+        self.test_tag_file = os.path.join(self.basepath, "resources", "test_tag_files.json")
+
+        self.train_dataset = VelocityDataset(
+                                    tag_file=self.train_tag_file, 
+                                    imu_vs_directory=self.imu_vs_directory, 
+                                    gps_vs_directory=self.gps_vs_directory,
+                                    hz=50
+                                )
+        self.train_dataloader = DataLoader(self.train_dataset, batch_size=5,
+                                shuffle=True)
+
+        # Define the loss
+        self.criterion = nn.MSELoss()
+        # define optimizer
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        # optimizer = optim.SGD(lr=0.001)
+        # define num epochs
+        self.epochs = 100
         
     def forward(self, x):
         # Pass the input tensor through each of our operations
@@ -93,44 +123,96 @@ class SimpleNetwork(nn.Module):
         
         return x
 
-    def train(self, sample):
+    def train_sample(self, sample):
         return self.forward(sample.float())
 
+    def train(self):
+        for e in range(self.epochs):
+            running_loss = 0
+            for sample, gt in self.train_dataloader:    
+                # Training pass
+                self.optimizer.zero_grad()
+                
+                output = self.train_sample(sample)
+                loss = self.criterion(output, gt.float())
+                loss.backward()
+                self.optimizer.step()
+                
+                running_loss += loss.item()
+            else:
+                print(f"Epoch: {e} Training loss: {running_loss/len(self.train_dataloader)}")
+    
+    def evaluate(self):
+
+        with open(self.test_tag_file, "r") as jsonfile:
+            tagged_paths = json.load(jsonfile)
+
+        for filename, description in tagged_paths.items():
+            
+            basename = filename.split(".gpx")[0]
+
+            imu_filename = os.path.join(self.imu_vs_directory, basename + self.train_dataset.imu_vs_suffix)
+            gps_filename = os.path.join(self.gps_vs_directory, basename + self.train_dataset.gps_vs_suffix)
+
+            raw_imu_vxs, raw_imu_vys, raw_imu_vzs = get_vs_from_file(imu_filename)
+            gps_vxs, gps_vys, gps_vzs = get_vs_from_file(gps_filename)
+
+            raw_imu_vs = np.stack([np.array(raw_imu_vxs), np.array(raw_imu_vys), np.array(raw_imu_vzs)]).T
+
+            imu_vs = None
+
+            for i in range(0, len(raw_imu_vxs) - self.imu_freq):
+                try:
+                    raw_sample = raw_imu_vs[i:i + self.imu_freq, :]
+                    sample = np.concatenate([raw_sample[:, 0], raw_sample[:, 1], raw_sample[:, 2]], axis=0)
+                    output = self.train_sample(torch.from_numpy(sample))
+                    if imu_vs is None:
+                        imu_vs = np.expand_dims(output.detach().numpy(), axis=0)
+                    else:  
+                        imu_vs = np.concatenate([imu_vs, np.expand_dims(output.detach().numpy(), axis=0)], axis=0)
+                except:
+                    pass
+
+            raw_imu_pxs, raw_imu_pys, raw_imu_pzs = get_xyz_poses(raw_imu_vxs, raw_imu_vys, raw_imu_vzs, 1.0 / self.imu_freq)
+            imu_pxs, imu_pys, imu_pzs = get_xyz_poses(imu_vs[:, 0], imu_vs[:, 1], imu_vs[:, 2], 1.0 / self.imu_freq)
+            gps_pxs, gps_pys, gps_pzs = get_xyz_poses(gps_vxs, gps_vys, gps_vzs, 1.0 / self.gps_freq)         
+
+            mpl.rcParams['legend.fontsize'] = 10
+            fig = plt.figure()
+            # ax = fig.gca(projection='3d')
+            plt.plot(raw_imu_pxs, raw_imu_pys,label='positions from raw imu velocity curve')
+            plt.plot(imu_pxs, imu_pys,label='positions from imu velocity curve')
+            plt.plot(gps_pxs, gps_pys,label='positions from gps velocity curve')
+            plt.title(basename)
+            plt.legend()
+
+            plt.show()
+
+        
+
+
+    def save_model(self, modelname):
+        if not os.path.exists(os.path.join(self.basepath, "models")):
+            os.makedirs(os.path.join(self.basepath, "models"))
+        torch.save(self.state_dict(), os.path.join(self.basepath, "models", modelname))
+
+    def load_model(self, modelname):
+        self.load_state_dict(torch.load(os.path.join(self.basepath, "models", modelname)))
+
 if __name__ == "__main__":
+    train_mode = False # if train_mode, train and save model, else eval_mode, evaluate on data
+    
 
 
-    imu_vs_directory = os.path.join(sys.path[0], "..","data", "imu_vs")
-    gps_vs_directory = os.path.join(sys.path[0], "..","data", "gps_vs")
-    tag_file = os.path.join(sys.path[0], "..","resources", "tagged_files.json")
+    basepath = sys.path[0][:-7]
 
-    dataset = VelocityDataset(
-                                tag_file=tag_file, 
-                                imu_vs_directory=imu_vs_directory, 
-                                gps_vs_directory=gps_vs_directory,
-                                hz=50
-                            )
-    dataloader = DataLoader(dataset, batch_size=5,
-                            shuffle=True)
+    model = SimpleNetwork(basepath=basepath)
 
-
-    model = SimpleNetwork()
-    # Define the loss
-    criterion = nn.MSELoss()
-    # Optimizers require the parameters to optimize and a learning rate
-    optimizer = optim.Adam(model.parameters(), lr=0.0001)
-    # optimizer = optim.SGD(lr=0.001)
-    epochs = 1000
-    for e in range(epochs):
-        running_loss = 0
-        for sample, gt in dataloader:    
-            # Training pass
-            optimizer.zero_grad()
-            
-            output = model.train(sample)
-            loss = criterion(output, gt.float())
-            loss.backward()
-            optimizer.step()
-            
-            running_loss += loss.item()
-        else:
-            print(f"Epoch: {e} Training loss: {running_loss/len(dataloader)}")
+    if train_mode:
+        model.train()
+        # save model with timestamp to avoid overwriting old models
+        model_name = "simplemodel_" + str(datetime.datetime.now()).split(".")[0].replace(":", ".")
+        model.save_model(model_name)
+    else:
+        model.load_model("simplemodel_2020-11-30 19.15.07")
+        model.evaluate()
