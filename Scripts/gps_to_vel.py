@@ -42,20 +42,27 @@ def calc_velocity(filepath, filename):
     vel = []
 
     for i in range (len(lat_lon)-1):
-        ref_lat = lat_lon[i+1][0]
-        ref_long = lat_lon[i][1]
+        ref_lat = lat_lon[i][0]
+        ref_long = lat_lon[i+1][1]
         ref_point = [ref_lat, ref_long]
+        
+        dirx = 1 if (ref_lat <= lat_lon[i+1][0]) else -1
+        diry = 1 if (ref_long >= lat_lon[i][1]) else -1
+
+        # direrction
         distx = distance.geodesic(lat_lon[i], ref_point,  ellipsoid='WGS-84').km * 1000
         disty = distance.geodesic(lat_lon[i+1], ref_point,  ellipsoid='WGS-84').km * 1000
-        velx.append(distx/dt) #since its 1 second update
-        vely.append(disty/dt) #since its 1 second update
+        velx.append(dirx*distx/dt) #since its 1 second update
+        vely.append(diry*disty/dt) #since its 1 second update
         vel.append(distance.geodesic(lat_lon[i+1], lat_lon[i],  ellipsoid='WGS-84').km * 1000)
 
 
     # elevation in feet convert to meters
     velz = []
     for i in range (len(alt)-1):
-        velz.append((alt[i+1]-alt[i])*0.3048/dt)
+        dirz = 1 if (alt[i] <= alt[i+1]) else -1
+        velz.append((alt[i+1]-alt[i])*0.3048/dt*dirz)
+
 
     # sanity check seems good
     # for i in range(len(velx)):
