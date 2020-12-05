@@ -7,6 +7,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import matplotlib.pyplot as plt
 import json
+import utm
 
 from utils import *
 
@@ -15,7 +16,6 @@ def get_vs_from_file(filename):
 
     :rtype: x, y, z velocities as lists
     """
-    pass
 
     print(filename)
 
@@ -31,14 +31,54 @@ def get_vs_from_file(filename):
         for row in reader:
             try:
                 # TODO: take out abs once gps velocity has direction
-                vxs.append(abs(float(row[0])))
-                vys.append(abs(float(row[1])))
-                vzs.append(abs(float(row[2])))
+                vxs.append((float(row[0])))
+                vys.append((float(row[1])))
+                vzs.append((float(row[2])))
             except:
                 # sometimes the last row is incomplete
                 pass
 
     return vxs, vys, vzs
+
+def get_ps_from_file(filename):
+    """gets positions from og gps file
+
+    :rtype: x, y, z positions as lists
+    """
+    print(filename)
+
+    df = pd.read_csv(filename)
+    print(df.shape)
+
+    pxs = []
+    pys = []
+
+    started = False
+
+    offsetx = 0
+    offsety = 0
+
+    with open(filename) as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            try:
+                lat = float(row[9][1:])
+                lon = float(row[10][1:])
+                if lat == 0 or lon == 0:
+                    continue
+                x, y, _, _ = utm.from_latlon(lat, lon)
+                if not started:
+                    offsetx = x
+                    offsety = y
+                    started = True
+                pxs.append(x - offsetx)
+                pys.append(y - offsety)
+
+            except:
+                # sometimes the last row is incomplete
+                pass
+
+    return pxs, pys
 
 def get_xyz_poses(vxs, vys, vzs, dt):
     pos_x = []
@@ -69,6 +109,7 @@ if __name__ == "__main__":
     gps_dt_200 = 1 # TODO: update for gps_dt_200
     imu_vs_directory = os.path.join(get_basepath(), "data", "imu_vs")
     gps_vs_directory = os.path.join(get_basepath(), "data", "gps_vs")
+    og_gps_directory = os.path.join(get_basepath(), "data", "csv", "50hz")
 
     gps_vs_string = "_gps_vel.csv"
 
@@ -91,6 +132,7 @@ if __name__ == "__main__":
     
         imu_vxs, imu_vys, imu_vzs = get_vs_from_file(imu_file)
         gps_vxs, gps_vys, gps_vzs = get_vs_from_file(gps_file)
+        actual_gps_pxs, actual_gps_pys = get_ps_from_file(os.path.join(og_gps_directory, base_filename + ".csv"))
 
         if ("stationary" in imu_relative_path):
             imu_pxs, imu_pys, imu_pzs = get_xyz_poses(imu_vxs, imu_vys, imu_vzs, imu_dt_200)
@@ -102,8 +144,14 @@ if __name__ == "__main__":
         imu_t = np.arange(0, len(imu_pxs))
         gps_t = np.arange(0, len(gps_pxs))
 
-        plot3d(
-                xyzs=[(imu_pxs, imu_pys, imu_pzs), (gps_pxs, gps_pys, gps_pzs)],
+        # plot3d(
+        #         xyzs=[(imu_pxs, imu_pys, imu_pzs), (gps_pxs, gps_pys, gps_pzs)],
+        #         labels=["positions from imu velocity curve", "positions from gps velocity curve"],
+        #         title=base_filename
+        #     )
+        
+        plot2d(
+                xys=[(imu_pxs, imu_pys), (gps_pxs, gps_pys)],
                 labels=["positions from imu velocity curve", "positions from gps velocity curve"],
                 title=base_filename
             )

@@ -6,10 +6,11 @@ import sys
 from collections import defaultdict
 import math
 from pathlib import Path
+import utm
 from utils import *
 
 
-def calc_velocity(filepath, filename):
+def calc_velocity(filepath, filename, from_utm=False):
     dt = 1 # to be changed later cuz were only sampling at 1Hz
     alt = []
     lat_lon = []
@@ -41,21 +42,44 @@ def calc_velocity(filepath, filename):
     vely = [] #y axis is north south direction
     vel = []
 
+    # offsetx = 0
+    # offsety = 0
+    # started_path = False
+    
     for i in range (len(lat_lon)-1):
-        ref_lat = lat_lon[i][0]
-        ref_long = lat_lon[i+1][1]
-        ref_point = [ref_lat, ref_long]
-        
-        dirx = 1 if (ref_lat <= lat_lon[i+1][0]) else -1
-        diry = 1 if (ref_long >= lat_lon[i][1]) else -1
+        if from_utm:
+            prev_lat = lat_lon[i][0]
+            prev_lon = lat_lon[i][1]
+            curr_lat = lat_lon[i + 1][0]
+            curr_lon = lat_lon[i + 1][1]
+            if prev_lat == 0 or prev_lon == 0:
+                continue
+            prev_x, prev_y, _, _ = utm.from_latlon(prev_lat, prev_lon)
+            curr_x, curr_y, _, _ = utm.from_latlon(curr_lat, curr_lon)
+            
+            dirx = 1
+            diry = 1
 
-        # direrction
-        distx = distance.geodesic(lat_lon[i], ref_point,  ellipsoid='WGS-84').km * 1000
-        disty = distance.geodesic(lat_lon[i+1], ref_point,  ellipsoid='WGS-84').km * 1000
-        velx.append(dirx*distx/dt) #since its 1 second update
-        vely.append(diry*disty/dt) #since its 1 second update
-        vel.append(distance.geodesic(lat_lon[i+1], lat_lon[i],  ellipsoid='WGS-84').km * 1000)
+            # direrction
+            distx = curr_x - prev_x
+            disty = curr_y - prev_y
+            velx.append(dirx*distx/dt) #since its 1 second update
+            vely.append(diry*disty/dt) #since its 1 second update
+            vel.append(distance.geodesic(lat_lon[i+1], lat_lon[i],  ellipsoid='WGS-84').km * 1000)
+        else:
+            ref_lat = lat_lon[i][0]
+            ref_long = lat_lon[i+1][1]
+            ref_point = [ref_lat, ref_long]
+            
+            dirx = 1 if (ref_lat <= lat_lon[i+1][0]) else -1
+            diry = 1 if (ref_long >= lat_lon[i][1]) else -1
 
+            # direrction
+            distx = distance.geodesic(lat_lon[i], ref_point,  ellipsoid='WGS-84').km * 1000
+            disty = distance.geodesic(lat_lon[i+1], ref_point,  ellipsoid='WGS-84').km * 1000
+            velx.append(dirx*distx/dt) #since its 1 second update
+            vely.append(diry*disty/dt) #since its 1 second update
+            vel.append(distance.geodesic(lat_lon[i+1], lat_lon[i],  ellipsoid='WGS-84').km * 1000)
 
     # elevation in feet convert to meters
     velz = []
@@ -82,16 +106,22 @@ def calc_velocity(filepath, filename):
             writer.writerow([velx[i],vely[i], velz[i]])
 
 if __name__ == "__main__":
+    from_utm = True
+    single_file = True
 
     directory_50 = os.path.join(get_basepath(), "data","csv", "50hz")
-    for filename in os.listdir(directory_50):
+    directory_50_list = os.listdir(directory_50)
+    if single_file:
+        directory_50_list = ["Sun Nov 15 18_05_03 2020.csv"]
+    for filename in directory_50_list:
         if(filename.endswith(".csv")):
             filepath = os.path.join(directory_50, filename)
-            calc_velocity(filepath, filename)
+            calc_velocity(filepath, filename, from_utm)
 
-    directory_200 = os.path.join(get_basepath(), "data","csv", "200hz")
-    for filename in os.listdir(directory_200):
-        if(filename.endswith(".csv")):
-            filepath = os.path.join(directory_200, filename)
-            calc_velocity(filepath, filename)
+    # directory_200 = os.path.join(get_basepath(), "data","csv", "200hz")
+    # directory_200_list = os.listdir(directory_200)
+    # for filename in directory_200_list:
+    #     if(filename.endswith(".csv")):
+    #         filepath = os.path.join(directory_200, filename)
+    #         calc_velocity(filepath, filename, from_utm)
     
