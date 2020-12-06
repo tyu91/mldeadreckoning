@@ -106,22 +106,20 @@ def calc_velocity(filepath, filename, from_utm=False):
             writer.writerow([velx[i],vely[i], velz[i]])
 
 if __name__ == "__main__":
-    from_utm = True
-    single_file = True
+    from_utm = True # use utm in velocity conversion, it's what works right now
+    is_50hz = False
+    use_split_csv = True # use split_csv or csv directory
+    single_file = False # convert for single file or all files in hz directory
 
-    directory_50 = os.path.join(get_basepath(), "data","csv", "50hz")
-    directory_50_list = os.listdir(directory_50)
+    hz_string = "50hz" if is_50hz else "200hz"
+    csv_directory_string = "split_csv" if use_split_csv else "csv"
+
+    directory = os.path.join(get_basepath(), "data",csv_directory_string, hz_string)
+    directory_list = os.listdir(directory)
     if single_file:
-        directory_50_list = ["Sun Nov 15 18_05_03 2020.csv"]
-    for filename in directory_50_list:
+        directory_list = ["randomSat Dec  5 17_23_01 2020_2.csv"]
+    for filename in directory_list:
         if(filename.endswith(".csv")):
-            filepath = os.path.join(directory_50, filename)
+            filepath = os.path.join(directory, filename)
             calc_velocity(filepath, filename, from_utm)
-
-    # directory_200 = os.path.join(get_basepath(), "data","csv", "200hz")
-    # directory_200_list = os.listdir(directory_200)
-    # for filename in directory_200_list:
-    #     if(filename.endswith(".csv")):
-    #         filepath = os.path.join(directory_200, filename)
-    #         calc_velocity(filepath, filename, from_utm)
     

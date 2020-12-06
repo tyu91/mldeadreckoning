@@ -46,6 +46,8 @@ if __name__ == "__main__":
         csv_split(sys.argv[1], sys.argv[2])
     if len(sys.argv) == 1:
         for fname in os.listdir(os.path.join(get_basepath(), "data", "csv", hz_string)):
+            if ".csv" not in fname:
+                continue
             infile = os.path.join(get_basepath(), "data", "csv", hz_string, fname)
             outfile = os.path.join(get_basepath(), "data", "split_csv", hz_string, fname)
             csv_split(infile, outfile)

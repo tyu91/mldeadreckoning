@@ -134,7 +134,7 @@ def compute_windowed_acc_and_vel(axs, ays, azs, rxs, rys, rzs, rolling, is_50hz)
     if is_50hz:
         window_size = 50
     else: 
-        window_size = 200
+        window_size = 20
     prev_i = 0
     # correction_x = 0.054
     # correction_y = 0.55
@@ -218,27 +218,34 @@ if __name__ == "__main__":
     # set these flags to change settings
     is_rolling = True # rolling window or average window flag
     is_50hz = False # is data sampled at 50hz or 200hz
-    show_plots = True # show plots or not (if looping through, better not to)
+    use_split_csv = True # use split_csv or csv directory
+    show_plots = False # show plots or not (if looping through, better not to)
     single_file = False # only process data for a single file vs. all of the files
 
     hz_string = "50hz" if is_50hz else "200hz"
+    csv_directory_string = "split_csv" if use_split_csv else "csv"
 
-    hz_directory = os.path.join(get_basepath(), "data", "csv", hz_string)
+    hz_directory = os.path.join(get_basepath(), "data", csv_directory_string, hz_string)
     if single_file:
-        relative_filenames = ["Sun Nov 15 17_52_12 2020.csv"] # 4 right turns 50hz
+        relative_filenames = ["randomSat Dec  5 17_23_01 2020_2.csv"] # 4 right turns 50hz
+        # relative_filenames = ["Sun Nov 15 17_52_12 2020.csv"] # 4 right turns 50hz
         # relative_filename = "stationary-Thu Nov 19 14_05_11 2020.csv" # stationary 200hz
     else:
         relative_filenames = os.listdir(hz_directory)
     for relative_filename in relative_filenames:
-        
-        filename = os.path.join(get_basepath(), "data", "csv", hz_string, relative_filename)
+        filename = os.path.join(get_basepath(), "data", csv_directory_string, hz_string, relative_filename)
 
         axs, ays, azs, rxs, rys, rzs = parse_input_file(filename)
-        axs, ays, azs, vxs, vys, vzs = compute_windowed_acc_and_vel(axs, ays, azs, rxs, rys, rzs, is_rolling, is_50hz)
+        new_axs, new_ays, new_azs, vxs, vys, vzs = compute_windowed_acc_and_vel(axs, ays, azs, rxs, rys, rzs, is_rolling, is_50hz)
         if show_plots:
             plot_a_v(axs, ays, azs, vxs, vys, vzs)
             plot3d(
                 xyzs=[(vxs, vys, vzs)],
+                labels=["plotted imu velocities"],
+                title=relative_filename
+            )
+            plot2d(
+                xys=[(vxs, vys)],
                 labels=["plotted imu velocities"],
                 title=relative_filename
             )

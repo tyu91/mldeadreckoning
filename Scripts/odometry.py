@@ -98,7 +98,7 @@ def get_xyz_poses(vxs, vys, vzs, dt):
     return pos_x, pos_y, pos_z
 
 if __name__ == "__main__":
-    single_file = True # perform odometry on single file vs. all files
+    single_file = False # perform odometry on single file vs. all files
     tag_files = False # write tags to file
 
     # dt = 0.5 #1Hz
@@ -109,12 +109,12 @@ if __name__ == "__main__":
     gps_dt_200 = 1 # TODO: update for gps_dt_200
     imu_vs_directory = os.path.join(get_basepath(), "data", "imu_vs")
     gps_vs_directory = os.path.join(get_basepath(), "data", "gps_vs")
-    og_gps_directory = os.path.join(get_basepath(), "data", "csv", "50hz")
+    og_gps_directory = os.path.join(get_basepath(), "data", "split_csv", "200hz")
 
     gps_vs_string = "_gps_vel.csv"
 
     if single_file:
-        imu_paths = ["Sun Nov 15 18_05_03 2020_imu_vel_rolling_window.csv"]
+        imu_paths = ["randomSat Dec  5 17_23_01 2020_2_imu_vel_rolling_window.csv"]
     else:
         imu_paths = os.listdir(imu_vs_directory)
 
@@ -134,7 +134,8 @@ if __name__ == "__main__":
         gps_vxs, gps_vys, gps_vzs = get_vs_from_file(gps_file)
         actual_gps_pxs, actual_gps_pys = get_ps_from_file(os.path.join(og_gps_directory, base_filename + ".csv"))
 
-        if ("stationary" in imu_relative_path):
+        if (imu_relative_path[0].islower()):
+            # janky if 200hz casing
             imu_pxs, imu_pys, imu_pzs = get_xyz_poses(imu_vxs, imu_vys, imu_vzs, imu_dt_200)
             gps_pxs, gps_pys, gps_pzs = get_xyz_poses(gps_vxs, gps_vys, gps_vzs, gps_dt_200)
         else:
