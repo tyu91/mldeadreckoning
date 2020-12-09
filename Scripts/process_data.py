@@ -106,6 +106,21 @@ def write_output_file(output_filename, vxs, vys, vzs):
         row_vs = [list(elem) for elem in list(zip(vxs, vys, vzs))]
         writer.writerows(row_vs)
 
+def convert_to_constant_rotations(filename, rxs, rys, rzs):
+    const_window_size = 500
+    endswith2020 = filename.endswith("2020.csv")
+    endswith0 = filename.endswith("_0.csv")
+    if True:
+        new_rxs = rxs[:const_window_size] * (len(rxs) // const_window_size)
+        new_rxs += rxs[:len(rxs) % const_window_size]
+        new_rys = rys[:const_window_size] * (len(rys) // const_window_size)
+        new_rys += rys[:len(rys) % const_window_size]
+        new_rzs = rzs[:const_window_size] * (len(rzs) // const_window_size)
+        new_rzs += rzs[:len(rzs) % const_window_size]
+
+        
+    return new_rxs, new_rys, new_rzs
+
 def compute_transformed_accelerations(axs, ays, azs, rxs, rys, rzs):
     """ transforms accelerations by rotations
 
@@ -186,7 +201,7 @@ def compute_windowed_acc_and_vel(axs, ays, azs, rxs, rys, rzs, rolling, is_50hz)
 
     return axs, ays, azs, vxs, vys, vzs
 
-def plot_a_v(axs, ays, azs, vxs, vys, vzs):
+def plot_avr(relative_filename, axs, ays, azs, vxs, vys, vzs, rxs, rys, rzs):
     t1a = np.arange(0, len(axs))
     t2a = np.arange(0, len(ays))
     t3a = np.arange(0, len(azs))
@@ -195,21 +210,34 @@ def plot_a_v(axs, ays, azs, vxs, vys, vzs):
     t2v = np.arange(0, len(vys))
     t3v = np.arange(0, len(vzs))
 
-    fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=3, figsize=(12,8))
+    t1r = np.arange(0, len(rxs))
+    t2r = np.arange(0, len(rys))
+    t3r = np.arange(0, len(rzs))
 
-    ax1[0].plot(t1a, axs)
-    ax1[0].set_title("transformed axs over time")
-    ax1[1].plot(t2a, ays)
-    ax1[1].set_title("transformed ays over time")
-    ax1[2].plot(t3a, azs)
-    ax1[2].set_title("transformed azs over time")
+    fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=3, figsize=(12,8)) # nrows = avr
 
-    ax2[0].plot(t1v, vxs)
-    ax2[0].set_title("transformed vxs over time")
-    ax2[1].plot(t2v, vys)
-    ax2[1].set_title("transformed vys over time")
-    ax2[2].plot(t3v, vzs)
-    ax2[2].set_title("transformed vzs over time")
+    ax1[0].plot(t1r, rxs)
+    ax1[0].set_title("raw rxs over time")
+    ax1[1].plot(t2r, rys)
+    ax1[1].set_title("raw rys over time")
+    ax1[2].plot(t3r, rzs)
+    ax1[2].set_title("raw rzs over time")
+
+    ax2[0].plot(t1a, axs)
+    ax2[0].set_title("transformed axs over time")
+    ax2[1].plot(t2a, ays)
+    ax2[1].set_title("transformed ays over time")
+    ax2[2].plot(t3a, azs)
+    ax2[2].set_title("transformed azs over time")
+
+    ax3[0].plot(t1v, vxs)
+    ax3[0].set_title("transformed vxs over time")
+    ax3[1].plot(t2v, vys)
+    ax3[1].set_title("transformed vys over time")
+    ax3[2].plot(t3v, vzs)
+    ax3[2].set_title("transformed vzs over time")
+
+    fig.suptitle(relative_filename)
 
     plt.show()
 
@@ -219,15 +247,16 @@ if __name__ == "__main__":
     is_rolling = True # rolling window or average window flag
     is_50hz = False # is data sampled at 50hz or 200hz
     use_split_csv = True # use split_csv or csv directory
-    show_plots = False # show plots or not (if looping through, better not to)
+    show_plots = True # show plots or not (if looping through, better not to)
     single_file = False # only process data for a single file vs. all of the files
+    constant_rotations = False # if need to account for gyro drift, set to True
 
     hz_string = "50hz" if is_50hz else "200hz"
     csv_directory_string = "split_csv" if use_split_csv else "csv"
 
     hz_directory = os.path.join(get_basepath(), "data", csv_directory_string, hz_string)
     if single_file:
-        relative_filenames = ["randomSat Dec  5 17_23_01 2020_2.csv"] # 4 right turns 50hz
+        relative_filenames = ["turnsSat Dec  5 15_40_55 2020_0.csv"] # 4 right turns 50hz
         # relative_filenames = ["Sun Nov 15 17_52_12 2020.csv"] # 4 right turns 50hz
         # relative_filename = "stationary-Thu Nov 19 14_05_11 2020.csv" # stationary 200hz
     else:
@@ -236,19 +265,21 @@ if __name__ == "__main__":
         filename = os.path.join(get_basepath(), "data", csv_directory_string, hz_string, relative_filename)
 
         axs, ays, azs, rxs, rys, rzs = parse_input_file(filename)
-        new_axs, new_ays, new_azs, vxs, vys, vzs = compute_windowed_acc_and_vel(axs, ays, azs, rxs, rys, rzs, is_rolling, is_50hz)
+        if constant_rotations:
+            rxs, rys, rzs = convert_to_constant_rotations(filename, rxs, rys, rzs)
+        axs, ays, azs, vxs, vys, vzs = compute_windowed_acc_and_vel(axs, ays, azs, rxs, rys, rzs, is_rolling, is_50hz)
         if show_plots:
-            plot_a_v(axs, ays, azs, vxs, vys, vzs)
-            plot3d(
-                xyzs=[(vxs, vys, vzs)],
-                labels=["plotted imu velocities"],
-                title=relative_filename
-            )
-            plot2d(
-                xys=[(vxs, vys)],
-                labels=["plotted imu velocities"],
-                title=relative_filename
-            )
+            plot_avr(relative_filename, axs, ays, azs, vxs, vys, vzs, rxs, rys, rzs)
+            # plot3d(
+            #     xyzs=[(vxs, vys, vzs)],
+            #     labels=["plotted imu velocities"],
+            #     title=relative_filename
+            # )
+            # plot2d(
+            #     xys=[(vxs, vys)],
+            #     labels=["plotted imu velocities"],
+            #     title=relative_filename
+            # )
 
         rolling_word = "rolling_window" if is_rolling else "average_window"
         output_filename = os.path.join(get_basepath(), "data", "imu_vs", relative_filename[:-4] + "_imu_vel_" + rolling_word + ".csv")

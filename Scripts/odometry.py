@@ -98,7 +98,7 @@ def get_xyz_poses(vxs, vys, vzs, dt):
     return pos_x, pos_y, pos_z
 
 if __name__ == "__main__":
-    single_file = False # perform odometry on single file vs. all files
+    single_file = True # perform odometry on single file vs. all files
     tag_files = False # write tags to file
 
     # dt = 0.5 #1Hz
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     gps_vs_string = "_gps_vel.csv"
 
     if single_file:
-        imu_paths = ["randomSat Dec  5 17_23_01 2020_2_imu_vel_rolling_window.csv"]
+        imu_paths = ["slowwwSat Dec  5 15_58_33 2020_2_imu_vel_rolling_window.csv"]
     else:
         imu_paths = os.listdir(imu_vs_directory)
 

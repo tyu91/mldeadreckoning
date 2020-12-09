@@ -61,7 +61,7 @@ def calc_velocity(filepath, filename, from_utm=False):
             diry = 1
 
             # direrction
-            distx = curr_x - prev_x
+            distx = curr_x - prev_x # TODO: negate to display properly but may fuck with position
             disty = curr_y - prev_y
             velx.append(dirx*distx/dt) #since its 1 second update
             vely.append(diry*disty/dt) #since its 1 second update
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     from_utm = True # use utm in velocity conversion, it's what works right now
     is_50hz = False
     use_split_csv = True # use split_csv or csv directory
-    single_file = False # convert for single file or all files in hz directory
+    single_file = True # convert for single file or all files in hz directory
 
     hz_string = "50hz" if is_50hz else "200hz"
     csv_directory_string = "split_csv" if use_split_csv else "csv"
@@ -117,7 +117,7 @@ if __name__ == "__main__":
     directory = os.path.join(get_basepath(), "data",csv_directory_string, hz_string)
     directory_list = os.listdir(directory)
     if single_file:
-        directory_list = ["randomSat Dec  5 17_23_01 2020_2.csv"]
+        directory_list = ["slowwwSat Dec  5 15_58_33 2020_2.csv"]
     for filename in directory_list:
         if(filename.endswith(".csv")):
             filepath = os.path.join(directory, filename)
