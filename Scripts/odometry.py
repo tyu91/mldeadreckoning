@@ -100,6 +100,8 @@ def get_xyz_poses(vxs, vys, vzs, dt):
 if __name__ == "__main__":
     single_file = True # perform odometry on single file vs. all files
     tag_files = False # write tags to file
+    show_plots = True # plot positions
+
 
     # dt = 0.5 #1Hz
     imu_dt_50 = 1.0 / 50 # 50Hz
@@ -114,7 +116,7 @@ if __name__ == "__main__":
     gps_vs_string = "_gps_vel.csv"
 
     if single_file:
-        imu_paths = ["slowwwSat Dec  5 15_58_33 2020_2_imu_vel_rolling_window.csv"]
+        imu_paths = ["random-Sat Nov 21 17_12_50 2020_1_imu_vel_rolling_window.csv"]
     else:
         imu_paths = os.listdir(imu_vs_directory)
 
@@ -126,12 +128,16 @@ if __name__ == "__main__":
     for imu_relative_path in imu_paths:
         if "csv" not in imu_relative_path:
             continue
+        # if "stationary" in imu_relative_path or "random" in imu_relative_path or "boosting" in imu_relative_path:
+        #   continue
         imu_file = os.path.join(imu_vs_directory, imu_relative_path)
         base_filename = imu_relative_path.split("_imu_")[0]
         gps_file = os.path.join(gps_vs_directory, base_filename + gps_vs_string)
-    
-        imu_vxs, imu_vys, imu_vzs = get_vs_from_file(imu_file)
-        gps_vxs, gps_vys, gps_vzs = get_vs_from_file(gps_file)
+        try:
+            imu_vxs, imu_vys, imu_vzs = get_vs_from_file(imu_file)
+            gps_vxs, gps_vys, gps_vzs = get_vs_from_file(gps_file)
+        except:
+            import pdb; pdb.set_trace()
         actual_gps_pxs, actual_gps_pys = get_ps_from_file(os.path.join(og_gps_directory, base_filename + ".csv"))
 
         if (imu_relative_path[0].islower()):
@@ -144,18 +150,18 @@ if __name__ == "__main__":
 
         imu_t = np.arange(0, len(imu_pxs))
         gps_t = np.arange(0, len(gps_pxs))
-
-        # plot3d(
-        #         xyzs=[(imu_pxs, imu_pys, imu_pzs), (gps_pxs, gps_pys, gps_pzs)],
-        #         labels=["positions from imu velocity curve", "positions from gps velocity curve"],
-        #         title=base_filename
-        #     )
-        
-        plot2d(
-                xys=[(imu_pxs, imu_pys), (gps_pxs, gps_pys)],
-                labels=["positions from imu velocity curve", "positions from gps velocity curve"],
-                title=base_filename
-            )
+        if show_plots:
+            # plot3d(
+            #         xyzs=[(imu_pxs, imu_pys, imu_pzs), (gps_pxs, gps_pys, gps_pzs)],
+            #         labels=["positions from imu velocity curve", "positions from gps velocity curve"],
+            #         title=base_filename
+            #     )
+            
+            plot2d(
+                    xys=[(imu_pxs, imu_pys), (gps_pxs, gps_pys)],
+                    labels=["positions from imu velocity curve", "positions from gps velocity curve"],
+                    title=base_filename
+                )
 
         # if in tag files mode
         if tag_files:
@@ -165,7 +171,7 @@ if __name__ == "__main__":
                 print(gpx_filename)
                 tag_dict[gpx_filename] = description
     if tag_files:
-        with open(os.path.join(basepath, "data", "json", "tagged_files.json"), "w") as jsonfile:
+        with open(os.path.join(basepath, "resources", "transformation_hope.json"), "w") as jsonfile:
             json.dump(tag_dict, jsonfile, indent=4)
 
 

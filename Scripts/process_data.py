@@ -247,8 +247,8 @@ if __name__ == "__main__":
     is_rolling = True # rolling window or average window flag
     is_50hz = False # is data sampled at 50hz or 200hz
     use_split_csv = True # use split_csv or csv directory
-    show_plots = True # show plots or not (if looping through, better not to)
-    single_file = False # only process data for a single file vs. all of the files
+    show_plots = False # show plots or not (if looping through, better not to)
+    single_file = True # only process data for a single file vs. all of the files
     constant_rotations = False # if need to account for gyro drift, set to True
 
     hz_string = "50hz" if is_50hz else "200hz"
@@ -256,9 +256,7 @@ if __name__ == "__main__":
 
     hz_directory = os.path.join(get_basepath(), "data", csv_directory_string, hz_string)
     if single_file:
-        relative_filenames = ["turnsSat Dec  5 15_40_55 2020_0.csv"] # 4 right turns 50hz
-        # relative_filenames = ["Sun Nov 15 17_52_12 2020.csv"] # 4 right turns 50hz
-        # relative_filename = "stationary-Thu Nov 19 14_05_11 2020.csv" # stationary 200hz
+        relative_filenames = ["random-Sat Nov 21 17_12_50 2020_1.csv"]
     else:
         relative_filenames = os.listdir(hz_directory)
     for relative_filename in relative_filenames:

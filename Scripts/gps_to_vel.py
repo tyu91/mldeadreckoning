@@ -61,8 +61,9 @@ def calc_velocity(filepath, filename, from_utm=False):
             diry = 1
 
             # direrction
-            distx = curr_x - prev_x # TODO: negate to display properly but may fuck with position
+            distx = (curr_x - prev_x) # TODO: negate to display properly but may fuck with position
             disty = curr_y - prev_y
+            
             velx.append(dirx*distx/dt) #since its 1 second update
             vely.append(diry*disty/dt) #since its 1 second update
             vel.append(distance.geodesic(lat_lon[i+1], lat_lon[i],  ellipsoid='WGS-84').km * 1000)
@@ -100,6 +101,7 @@ def calc_velocity(filepath, filename, from_utm=False):
     velx = velx[1:]
     vely = vely[1:]
     velz = velz[1:]
+    
     with open(csvname, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
         for i in range(len(velx)):
@@ -117,7 +119,7 @@ if __name__ == "__main__":
     directory = os.path.join(get_basepath(), "data",csv_directory_string, hz_string)
     directory_list = os.listdir(directory)
     if single_file:
-        directory_list = ["slowwwSat Dec  5 15_58_33 2020_2.csv"]
+        directory_list = ["random-Sat Nov 21 17_12_50 2020_1.csv"]
     for filename in directory_list:
         if(filename.endswith(".csv")):
             filepath = os.path.join(directory, filename)
