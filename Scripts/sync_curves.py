@@ -62,12 +62,6 @@ def compute_homography(imu_values, gps_values):
 
     normalized_transform = np.reshape(Vt[-1, :] / Vt[-1, -1], (3, 3))
 
-    # transformed_imu_values = np.dot(normalized_transform, np.hstack([imu_values, np.ones((num_elems, 1))]).T).T
-    # # TODO: temp solution, haven't implemented RANSAC
-    # centered_gps_values = gps_values
-
-    # return transformed_imu_values[:, 0], transformed_imu_values[:, 1], \
-    #     centered_gps_values[:, 0], centered_gps_values[:, 1]
     return normalized_transform
 
 def num_inliers(transform, imu_values, gps_values):
@@ -84,7 +78,11 @@ def num_inliers(transform, imu_values, gps_values):
     num_elems = imu_values.shape[0]
     threshold = 1e2
 
-    transform_inv = np.linalg.inv(transform)
+    try:
+        transform_inv = np.linalg.inv(transform)
+    except:
+        # if cannot compute inverse, ignore this transform
+        return 0
 
     transform1 = np.dot(transform, np.hstack([imu_values, np.ones((num_elems, 1))]).T).T[:, :2]
     forward_l2_error = np.power(transform1 - gps_values, 2)
