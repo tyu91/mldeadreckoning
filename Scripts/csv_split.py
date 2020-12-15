@@ -42,10 +42,6 @@ def csv_split(infile, outfile, correct_rzs):
                 rzs.append(float(row[CSVIDXMAP["rz"]]))
                 rzs = rzs[-400:]
 
-                # if not set_zero_vel_idx and np.average(vels) > 0.5:
-                #     set_zero_vel_idx = True
-                #     zero_vel_idx = 
-
                 # if length of sample at least MINLEN and velocity is close to 0, create new file.
                 if (np.average(vels) < 0.1 and length > MINLEN):
                     nprows = np.array(rows)

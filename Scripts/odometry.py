@@ -108,7 +108,7 @@ def compute_imu_gps_xyz_poses(base_filename, imu_file, gps_file, og_gps_director
     return imu_pxs, imu_pys, imu_pzs, gps_pxs, gps_pys, gps_pzs
 
 if __name__ == "__main__":
-    single_file = True # perform odometry on single file vs. all files
+    single_file = False # perform odometry on single file vs. all files
     tag_files = False # write tags to file
     show_plots = True # plot positions
     is_50hz = False 
