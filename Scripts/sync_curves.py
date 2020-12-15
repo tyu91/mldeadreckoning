@@ -135,41 +135,6 @@ def compute_affine_transformation(imu_pxs, imu_pys, imu_pzs, gps_pxs, gps_pys, g
 
     transformed_imu_values = np.dot(best_transform, np.hstack([imu_values, np.ones((num_elems, 1))]).T).T
 
-    # mult_values = np.multiply(imu_values, gps_values)
-    # cross_mult_values = np.multiply(np.flip(imu_values, axis=1), gps_values)
-
-    # fst_mult_values = np.vstack([mult_values[:, 0], cross_mult_values[:, 0], gps_values[:, 0]]).T
-    # snd_mult_values = np.vstack([mult_values[:, 1], cross_mult_values[:, 1], gps_values[:, 1]]).T
-    
-    # num_elems = imu_values.shape[0]
-    # zeros_7 = np.zeros((num_elems, 7))
-    # imu_fst = np.hstack([imu_values, zeros_7])
-    # imu_fst[:, 2] = 1
-    # imu_fst = -imu_fst
-    # imu_fst[:, 6:] = fst_mult_values
-
-    # zeros_3 = np.zeros((num_elems, 3))
-    # zeros_4 = np.zeros((num_elems, 4))
-    # imu_snd = np.hstack([zeros_3, imu_values, zeros_4])
-    # imu_snd[:, 5] = 1
-    # imu_snd = -imu_snd
-    # imu_snd[:, 6:] = snd_mult_values
-
-    # interleaved_imu = np.zeros((2 * num_elems, 9))
-    # interleaved_imu[0::2] = imu_fst
-    # interleaved_imu[1::2] = imu_snd
-
-    # U, S, Vt = np.linalg.svd(interleaved_imu)
-
-    # normalized_transform = np.reshape(Vt[-1, :] / Vt[-1, -1], (3, 3))
-
-    # transformed_imu_values = np.dot(normalized_transform, np.hstack([imu_values, np.ones((num_elems, 1))]).T).T
-    # # # TODO: temp solution, haven't implemented RANSAC
-    # centered_gps_values = gps_values
-
-    # return transformed_imu_values[:, 0], transformed_imu_values[:, 1], \
-    #     centered_gps_values[:, 0], centered_gps_values[:, 1]
-
     return transformed_imu_values[:, 0], transformed_imu_values[:, 1], \
         gps_values[:, 0], gps_values[:, 1]
 
