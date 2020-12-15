@@ -76,27 +76,27 @@ def num_inliers(transform, imu_values, gps_values):
     :param gps_values: full gps xy values (num_elem, 2)
     '''
     num_elems = imu_values.shape[0]
-    threshold = 1e2
+    threshold = 5
 
     try:
         transform_inv = np.linalg.inv(transform)
     except:
         # if cannot compute inverse, ignore this transform
-        return 0
+        return 0, None
 
+    # compute error between gps_values and transform * imu_values
     transform1 = np.dot(transform, np.hstack([imu_values, np.ones((num_elems, 1))]).T).T[:, :2]
-    forward_l2_error = np.power(transform1 - gps_values, 2)
+    forward_l2_error = np.linalg.norm(transform1 - gps_values, axis=1)
 
+    # compute error between imu_values and inv(transform) * gps_values
     transform2 = np.dot(transform_inv, np.hstack([gps_values, np.ones((num_elems, 1))]).T).T[:, :2]
-    backward_l2_error = np.power(transform2 - imu_values, 2)
+    backward_l2_error = np.linalg.norm(transform2 - imu_values, axis=1)
 
     total_l2_error = forward_l2_error + backward_l2_error
 
-    l2_error = np.sqrt(np.power(total_l2_error[:, 0], 2) + np.power(total_l2_error[:, 1], 2))
+    within_threshold = np.count_nonzero(total_l2_error < threshold)
 
-    within_threshold = np.count_nonzero(l2_error < threshold)
-
-    return within_threshold
+    return within_threshold, total_l2_error
 
 def ransac(imu_values, gps_values):
     '''implementation of RANSAC algorithm to pick best fitting transformation matrix
@@ -108,6 +108,7 @@ def ransac(imu_values, gps_values):
     num_samples = 4
     inliers = 0
     best_transform = np.zeros((3, 3))
+    best_std = 1000
 
     for i in range(num_trials):
         indices = random.sample(range(num_elems), num_samples)
@@ -118,11 +119,12 @@ def ransac(imu_values, gps_values):
         transform = compute_homography(sampled_imu_values, sampled_gps_values)
 
         # count number of inliers using this transform
-        curr_inliers_count = num_inliers(transform, imu_values, gps_values)
-        if curr_inliers_count > inliers:
+        curr_inliers_count, total_l2_error = num_inliers(transform, imu_values, gps_values)
+        curr_std = np.std(total_l2_error)
+        if curr_inliers_count > inliers and curr_std < best_std:
             inliers = curr_inliers_count
             best_transform = transform
-            # print("INLIERS COUNT: ", inliers)
+            best_std = curr_std
 
     # output transform that results in the largest number of inliers
     return best_transform
@@ -182,8 +184,8 @@ if __name__ == "__main__":
     for imu_relative_path in imu_paths:
         if "csv" not in imu_relative_path:
             continue
-        if "stationary" in imu_relative_path or "random" in imu_relative_path or "boosting" in imu_relative_path:
-          continue
+        # if "stationary" in imu_relative_path or "random" in imu_relative_path or "boosting" in imu_relative_path:
+        #   continue
         imu_file = os.path.join(imu_vs_directory, imu_relative_path)
         base_filename = imu_relative_path.split("_imu_")[0]
         gps_file = os.path.join(gps_vs_directory, base_filename + gps_vs_string)
