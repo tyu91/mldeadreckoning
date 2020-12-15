@@ -82,7 +82,7 @@ def num_inliers(transform, imu_values, gps_values):
     :param gps_values: full gps xy values (num_elem, 2)
     '''
     num_elems = imu_values.shape[0]
-    threshold = 1e3
+    threshold = 1e2
 
     transform_inv = np.linalg.inv(transform)
 
@@ -107,11 +107,12 @@ def ransac(imu_values, gps_values):
     '''
     num_elems = imu_values.shape[0]
     num_trials = num_elems
+    num_samples = 4
     inliers = 0
     best_transform = np.zeros((3, 3))
 
     for i in range(num_trials):
-        indices = random.sample(range(num_elems), 4)
+        indices = random.sample(range(num_elems), num_samples)
         sampled_imu_values = imu_values[indices, :]
         sampled_gps_values = gps_values[indices, :]
 
@@ -123,7 +124,7 @@ def ransac(imu_values, gps_values):
         if curr_inliers_count > inliers:
             inliers = curr_inliers_count
             best_transform = transform
-            print("INLIERS COUNT: ", inliers)
+            # print("INLIERS COUNT: ", inliers)
 
     # output transform that results in the largest number of inliers
     return best_transform
@@ -198,8 +199,9 @@ if __name__ == "__main__":
                                                                                         )
         if (len(imu_pxs) > 25000):
             continue
-        gps_pxs, gps_pys, gps_pzs = interpolate_xyz(gps_pxs, gps_pys, gps_pzs, len(imu_pxs))
-
+        interp_factor = 20
+        imu_pxs, imu_pys, imu_pzs = interpolate_xyz(imu_pxs, imu_pys, imu_pzs, len(gps_pxs) * interp_factor)
+        gps_pxs, gps_pys, gps_pzs = interpolate_xyz(gps_pxs, gps_pys, gps_pzs, len(gps_pxs) * interp_factor)
         if sanity_check:
             fake_transform = np.array([[0.5, -0.5, 3], [3, 1, 7], [0, 0, 1]])
             fake_imu =  np.random.rand(100, 2)  
