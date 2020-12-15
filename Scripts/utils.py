@@ -26,17 +26,22 @@ CSVIDXMAP = {
 def get_basepath():
     return sys.path[0][:-7]
 
-def plot2d(xys, labels, title):
+def plot2d(xys, labels, title, show_plots=True, savefig=False):
     mpl.rcParams['legend.fontsize'] = 10
     for i in range(len(xys)):
         xs, ys = xys[i]
         plt.plot(xs, ys, label=labels[i])
     plt.legend()
     plt.title(title)
-    plt.show()
-    pass
+    if savefig:
+        filename = title + ".png"
+        full_filename = os.path.join(get_basepath(), "data", "figures", filename)
+        plt.savefig(full_filename)
+    if show_plots:
+        plt.show()
+    plt.close()
 
-def plot3d(xyzs, labels, title):
+def plot3d(xyzs, labels, title, show_plots=True, savefig=False):
     mpl.rcParams['legend.fontsize'] = 10
     fig = plt.figure()
     ax = fig.gca(projection='3d')
@@ -45,5 +50,10 @@ def plot3d(xyzs, labels, title):
         ax.plot(xs, ys, zs, label=labels[i])
     ax.legend()
     plt.title(title)
-    plt.show()
-    pass
+    if savefig:
+        filename = title + ".png"
+        full_filename = os.path.join(get_basepath(), "data", "figures", filename)
+        plt.savefig(full_filename)
+    if show_plots:
+        plt.show()
+    plt.close()

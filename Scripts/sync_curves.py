@@ -27,8 +27,7 @@ def compute_centered(imu_values, gps_values, imu_cogs, gps_cogs):
     return imu_values, gps_values
 
 def compute_homography(imu_values, gps_values):
-    '''
-    compute affine transformation from imu to gps (currently zs ignored)
+    '''compute transformation from imu to gps xys for small sample
     '''
     # imu_values = np.stack([imu_pxs, imu_pys], axis=1)
     # gps_values = np.stack([gps_pxs, gps_pys], axis=1)
@@ -71,10 +70,20 @@ def compute_homography(imu_values, gps_values):
     #     centered_gps_values[:, 0], centered_gps_values[:, 1]
     return normalized_transform
 
-def compute_distance(transform, imu_values, gps_values):
+def num_inliers(transform, imu_values, gps_values):
+    '''compute number of elements having distance within threshold
 
+    Computes distance D = d(imu_values, transform * gps_values) + d(gps_values, inv(transform) * imu_values).
+    if D < threshold, then it is an inlier.
+    Return the number of samples that are inliers.
+
+    :param transform: normalized transformation matrix
+    :param imu_values: full imu xy values (num_elem, 2)
+    :param gps_values: full gps xy values (num_elem, 2)
+    '''
     num_elems = imu_values.shape[0]
-    threshold = 1e4
+    threshold = 1e3
+
     transform_inv = np.linalg.inv(transform)
 
     transform1 = np.dot(transform, np.hstack([imu_values, np.ones((num_elems, 1))]).T).T[:, :2]
@@ -93,9 +102,11 @@ def compute_distance(transform, imu_values, gps_values):
 
 def ransac(imu_values, gps_values):
     '''implementation of RANSAC algorithm to pick best fitting transformation matrix
+
+    :rtype: best-performing transformation
     '''
     num_elems = imu_values.shape[0]
-    num_trials = int(num_elems / 2)
+    num_trials = num_elems
     inliers = 0
     best_transform = np.zeros((3, 3))
 
@@ -108,7 +119,7 @@ def ransac(imu_values, gps_values):
         transform = compute_homography(sampled_imu_values, sampled_gps_values)
 
         # count number of inliers using this transform
-        curr_inliers_count = compute_distance(transform, imu_values, gps_values)
+        curr_inliers_count = num_inliers(transform, imu_values, gps_values)
         if curr_inliers_count > inliers:
             inliers = curr_inliers_count
             best_transform = transform
@@ -120,6 +131,8 @@ def ransac(imu_values, gps_values):
         
 
 def compute_affine_transformation(imu_pxs, imu_pys, imu_pzs, gps_pxs, gps_pys, gps_pzs):
+    ''' transform imu to gps coordinates
+    '''
     # convert to np array for ease of use
     imu_pxs = np.squeeze(np.array(imu_pxs))
     imu_pys = np.squeeze(np.array(imu_pys))
@@ -131,6 +144,7 @@ def compute_affine_transformation(imu_pxs, imu_pys, imu_pzs, gps_pxs, gps_pys, g
 
     num_elems = imu_values.shape[0]
 
+    # compute best transform using ransac algorithm
     best_transform = ransac(imu_values, gps_values)
 
     transformed_imu_values = np.dot(best_transform, np.hstack([imu_values, np.ones((num_elems, 1))]).T).T
@@ -143,7 +157,8 @@ def compute_affine_transformation(imu_pxs, imu_pys, imu_pzs, gps_pxs, gps_pys, g
 if __name__ == "__main__":
     single_file = False # perform odometry on single file vs. all files
     tag_files = False # write tags to file
-    show_plots = True # plot positions
+    show_plots = False # plot positions
+    save_plots = True # save plots to data
     is_50hz = False 
     sanity_check = False # set to true to make sure RANSAC algo works properly
 
@@ -180,7 +195,9 @@ if __name__ == "__main__":
                                                                                          og_gps_directory, 
                                                                                          imu_dt, 
                                                                                          gps_dt
-                                                                                        )     
+                                                                                        )
+        if (len(imu_pxs) > 25000):
+            continue
         gps_pxs, gps_pys, gps_pzs = interpolate_xyz(gps_pxs, gps_pys, gps_pzs, len(imu_pxs))
 
         if sanity_check:
@@ -196,10 +213,10 @@ if __name__ == "__main__":
         imu_t = np.arange(0, len(imu_pxs))
         gps_t = np.arange(0, len(gps_pxs))
 
-        if show_plots:
-            
-            plot2d(
-                    xys=[(imu_pxs, imu_pys), (gps_pxs, gps_pys)],
-                    labels=["positions from imu velocity curve", "positions from gps velocity curve"],
-                    title=base_filename
-                )
+        plot2d(
+                xys=[(imu_pxs, imu_pys), (gps_pxs, gps_pys)],
+                labels=["positions from imu velocity curve", "positions from gps velocity curve"],
+                title=base_filename,
+                show_plots=show_plots,
+                savefig=True
+            )
