@@ -25,8 +25,7 @@ CSVIDXMAP = {
         }
 
 def get_basepath():
-    return "/Users/tiffoyu/Documents/17728/mldeadreckoning/"
-    # return sys.path[0][:-7]
+    return sys.path[0][:-7]
 
 def plot2d(xys, labels, title, show_plots=True, savefig=False):
     mpl.rcParams['legend.fontsize'] = 10
