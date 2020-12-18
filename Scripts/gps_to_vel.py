@@ -10,7 +10,7 @@ import utm
 from utils import *
 
 
-def calc_velocity(filepath, filename, from_utm=False):
+def calc_velocity(filepath, filename):
     dt = 1 # to be changed later cuz were only sampling at 1Hz
     alt = []
     lat_lon = []
@@ -47,41 +47,26 @@ def calc_velocity(filepath, filename, from_utm=False):
     # started_path = False
     
     for i in range (len(lat_lon)-1):
-        if from_utm:
-            prev_lat = lat_lon[i][0]
-            prev_lon = lat_lon[i][1]
-            curr_lat = lat_lon[i + 1][0]
-            curr_lon = lat_lon[i + 1][1]
-            if prev_lat == 0 or prev_lon == 0:
-                continue
-            prev_x, prev_y, _, _ = utm.from_latlon(prev_lat, prev_lon)
-            curr_x, curr_y, _, _ = utm.from_latlon(curr_lat, curr_lon)
-            
-            dirx = 1
-            diry = 1
+        prev_lat = lat_lon[i][0]
+        prev_lon = lat_lon[i][1]
+        curr_lat = lat_lon[i + 1][0]
+        curr_lon = lat_lon[i + 1][1]
+        if prev_lat == 0 or prev_lon == 0:
+            continue
+        prev_x, prev_y, _, _ = utm.from_latlon(prev_lat, prev_lon)
+        curr_x, curr_y, _, _ = utm.from_latlon(curr_lat, curr_lon)
+        
+        dirx = 1
+        diry = 1
 
-            # direrction
-            distx = (curr_x - prev_x) # TODO: negate to display properly but may fuck with position
-            disty = curr_y - prev_y
-            
-            velx.append(dirx*distx/dt) #since its 1 second update
-            vely.append(diry*disty/dt) #since its 1 second update
-            vel.append(distance.geodesic(lat_lon[i+1], lat_lon[i],  ellipsoid='WGS-84').km * 1000)
-        else:
-            ref_lat = lat_lon[i][0]
-            ref_long = lat_lon[i+1][1]
-            ref_point = [ref_lat, ref_long]
-            
-            dirx = 1 if (ref_lat <= lat_lon[i+1][0]) else -1
-            diry = 1 if (ref_long >= lat_lon[i][1]) else -1
-
-            # direrction
-            distx = distance.geodesic(lat_lon[i], ref_point,  ellipsoid='WGS-84').km * 1000
-            disty = distance.geodesic(lat_lon[i+1], ref_point,  ellipsoid='WGS-84').km * 1000
-            velx.append(dirx*distx/dt) #since its 1 second update
-            vely.append(diry*disty/dt) #since its 1 second update
-            vel.append(distance.geodesic(lat_lon[i+1], lat_lon[i],  ellipsoid='WGS-84').km * 1000)
-
+        # direrction
+        distx = (curr_x - prev_x) # TODO: negate to display properly but may fuck with position
+        disty = curr_y - prev_y
+        
+        velx.append(dirx*distx/dt) #since its 1 second update
+        vely.append(diry*disty/dt) #since its 1 second update
+        vel.append(distance.geodesic(lat_lon[i+1], lat_lon[i],  ellipsoid='WGS-84').km * 1000)
+        
     # elevation in feet convert to meters
     velz = []
     for i in range (len(alt)-1):
@@ -108,20 +93,26 @@ def calc_velocity(filepath, filename, from_utm=False):
             writer.writerow([velx[i],vely[i], velz[i]])
 
 if __name__ == "__main__":
-    from_utm = True # use utm in velocity conversion, it's what works right now
-    is_50hz = False
-    use_split_csv = True # use split_csv or csv directory
-    single_file = True # convert for single file or all files in hz directory
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--single_file', help="The split csv file to use, e.g. random-Sat Nov 21 17_12_50 2020_1.csv", action="store")
+    parser.add_argument("--is_50hz", help="use 50hz data (default is 200hz data)", action="store_true")
+    parser.add_argument("--use_csv", help="use csv data (default is split_csv data)", action="store_true")
+    
+    args = parser.parse_args()
+
+    is_50hz = args.is_50hz
+    use_split_csv = not args.use_csv
 
     hz_string = "50hz" if is_50hz else "200hz"
     csv_directory_string = "split_csv" if use_split_csv else "csv"
 
     directory = os.path.join(get_basepath(), "data",csv_directory_string, hz_string)
     directory_list = os.listdir(directory)
-    if single_file:
-        directory_list = ["random-Sat Nov 21 17_12_50 2020_1.csv"]
+    if args.single_file is not None:
+        directory_list = [args.single_file]
     for filename in directory_list:
         if(filename.endswith(".csv")):
             filepath = os.path.join(directory, filename)
-            calc_velocity(filepath, filename, from_utm)
+            calc_velocity(filepath, filename)
     

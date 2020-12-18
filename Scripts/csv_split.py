@@ -129,15 +129,15 @@ def csv_split(infile, outfile, correct_rzs, correct_gyro):
                         outwriter.close()
                         outwriter = open(outfile[:-4] + "_" +str(filenum) + ".csv", "w")
                         rows = []
-                    else:
-                        split_nprows = np.array_split(nprows, length // (MINLEN * 6))
+                else:
+                    split_nprows = np.array_split(nprows, length // (MINLEN * 6))
 
-                        for nprow in split_nprows:
-                            filenum += 1
-                            np.savetxt(outwriter, nprow, delimiter=",", fmt='%s')
-                            outwriter.close()
-                            outwriter = open(outfile[:-4] + "_" +str(filenum) + ".csv", "w")
-                            rows = []
+                    for nprow in split_nprows:
+                        filenum += 1
+                        np.savetxt(outwriter, nprow, delimiter=",", fmt='%s')
+                        outwriter.close()
+                        outwriter = open(outfile[:-4] + "_" +str(filenum) + ".csv", "w")
+                        rows = []
                     length = 0
             length += 1
             # except Exception as e:
@@ -154,11 +154,13 @@ if __name__ == "__main__":
     parser.add_argument('--single_file', help="The csv file to use, e.g. random-Sat Nov 21 17_12_50 2020.csv", action="store")
     parser.add_argument("--is_50hz", help="use 50hz data (default is 200hz data)", action="store_true")
     parser.add_argument("--regular_rzs", help="don't use rz correction", action="store_true")
+    parser.add_argument("--regular_gyro", help="don't use gyro correction", action="store_true")
     
     args = parser.parse_args()
 
     is_50_hz = args.is_50hz
     correct_rzs = not args.regular_rzs
+    correct_gyro = not args.regular_gyro
 
     hz_string = "50hz" if is_50_hz else "200hz"
     if len(sys.argv) == 3:
@@ -173,7 +175,7 @@ if __name__ == "__main__":
                 continue
             infile = os.path.join(get_basepath(), "data", "csv", hz_string, fname)
             outfile = os.path.join(get_basepath(), "data", "split_csv", hz_string, fname)
-            csv_split(infile, outfile, correct_rzs)
+            csv_split(infile, outfile, correct_rzs, correct_gyro)
     # else:
     #     print("USAGE: python log_to_gpx.py $INFILE $OUTFILE")
     #     exit()
