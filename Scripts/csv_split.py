@@ -80,10 +80,12 @@ def csv_split(infile, outfile, correct_rzs, correct_gyro):
                     # print("GZ:", gz_adj)
 
                     # recalc all the sensor fusion...
+                    # https://ahrs.readthedocs.io/en/latest/filters/madgwick.html
+                    # read all the imu data (each row is the triplet of xyz)
                     acc_data = np.array([nprows[:, CSVIDXMAP["ax"]].astype(float), nprows[:, CSVIDXMAP["ay"]].astype(float), nprows[:, CSVIDXMAP["az"]].astype(float)]).transpose()
                     gyro_data = np.array([nprows[:, CSVIDXMAP["gx"]].astype(float), nprows[:, CSVIDXMAP["gy"]].astype(float), nprows[:, CSVIDXMAP["gz"]].astype(float)]).transpose()
 
-                    print(gyro_data[0])
+                    # pull out initial old rotation to use as the baseline
                     init = [nprows[:, CSVIDXMAP["rx"]].astype(float)[0], nprows[:, CSVIDXMAP["ry"]].astype(float)[0], nprows[:, CSVIDXMAP["rz"]].astype(float)[0]]
                     # get initial orientation from the data we already have
                     r = R.from_euler(seq='xyz', angles=init, degrees=True)
@@ -96,11 +98,14 @@ def csv_split(infile, outfile, correct_rzs, correct_gyro):
                     new_rys = []
                     new_rzs = []
                     for i in range(len(acc_data)):
-                        conv_gyro = (gyro_data[i])
+                        # gyro needs to be in radians
+                        conv_gyro = (gyro_data[i] / 57.2957795131)
+                        # acc needs to be in m/s2
                         conv_acc = (acc_data[i] * 9.81)
-                        print("acc:", conv_acc)
-                        print("gyr:", conv_gyro)
+                        # print("acc:", conv_acc)
+                        # print("gyr:", conv_gyro)
                         q = madgwick.updateIMU(gyr=conv_gyro, acc=conv_acc, q=q_last)
+                        # convert output back to euler angles and append to new lists
                         eulers = R.from_quat(q).as_euler(seq='xyz', degrees=True)
                         print("x:", eulers[0], "y:", eulers[1], "z:", eulers[2])
                         new_rxs.append(eulers[0])
@@ -108,6 +113,7 @@ def csv_split(infile, outfile, correct_rzs, correct_gyro):
                         new_rzs.append(eulers[2])
                         q_last = q
 
+                    
                     nprows[:, CSVIDXMAP["rx"]] = new_rxs
                     nprows[:, CSVIDXMAP["ry"]] = new_rys
                     nprows[:, CSVIDXMAP["rz"]] = new_rzs
@@ -124,11 +130,11 @@ def csv_split(infile, outfile, correct_rzs, correct_gyro):
                     nprows[:, CSVIDXMAP["rz"]] = nprzs
 
                 if length < MINLEN * 2 * 6:
-                        filenum += 1
-                        np.savetxt(outwriter, nprows, delimiter=",", fmt='%s')
-                        outwriter.close()
-                        outwriter = open(outfile[:-4] + "_" +str(filenum) + ".csv", "w")
-                        rows = []
+                    filenum += 1
+                    np.savetxt(outwriter, nprows, delimiter=",", fmt='%s')
+                    outwriter.close()
+                    outwriter = open(outfile[:-4] + "_" +str(filenum) + ".csv", "w")
+                    rows = []
                 else:
                     split_nprows = np.array_split(nprows, length // (MINLEN * 6))
 
@@ -154,13 +160,11 @@ if __name__ == "__main__":
     parser.add_argument('--single_file', help="The csv file to use, e.g. random-Sat Nov 21 17_12_50 2020.csv", action="store")
     parser.add_argument("--is_50hz", help="use 50hz data (default is 200hz data)", action="store_true")
     parser.add_argument("--regular_rzs", help="don't use rz correction", action="store_true")
-    parser.add_argument("--regular_gyro", help="don't use gyro correction", action="store_true")
     
     args = parser.parse_args()
 
     is_50_hz = args.is_50hz
     correct_rzs = not args.regular_rzs
-    correct_gyro = not args.regular_gyro
 
     hz_string = "50hz" if is_50_hz else "200hz"
     if len(sys.argv) == 3:
@@ -175,7 +179,7 @@ if __name__ == "__main__":
                 continue
             infile = os.path.join(get_basepath(), "data", "csv", hz_string, fname)
             outfile = os.path.join(get_basepath(), "data", "split_csv", hz_string, fname)
-            csv_split(infile, outfile, correct_rzs, correct_gyro)
+            csv_split(infile, outfile, correct_rzs)
     # else:
     #     print("USAGE: python log_to_gpx.py $INFILE $OUTFILE")
     #     exit()
