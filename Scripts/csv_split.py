@@ -113,7 +113,7 @@ def csv_split(infile, outfile, correct_rzs, correct_gyro):
                         new_rzs.append(eulers[2])
                         q_last = q
 
-                    
+
                     nprows[:, CSVIDXMAP["rx"]] = new_rxs
                     nprows[:, CSVIDXMAP["ry"]] = new_rys
                     nprows[:, CSVIDXMAP["rz"]] = new_rzs
@@ -144,7 +144,7 @@ def csv_split(infile, outfile, correct_rzs, correct_gyro):
                         outwriter.close()
                         outwriter = open(outfile[:-4] + "_" +str(filenum) + ".csv", "w")
                         rows = []
-                    length = 0
+                length = 0
             length += 1
             # except Exception as e:
             #     # sometimes the last row is incomplete
@@ -159,7 +159,8 @@ if __name__ == "__main__":
 
     parser.add_argument('--single_file', help="The csv file to use, e.g. random-Sat Nov 21 17_12_50 2020.csv", action="store")
     parser.add_argument("--is_50hz", help="use 50hz data (default is 200hz data)", action="store_true")
-    parser.add_argument("--regular_rzs", help="don't use rz correction", action="store_true")
+    parser.add_argument("--regular_rzs", help="don't use rz correction (default use rz correction)", action="store_true")
+    parser.add_argument("--regular_gyro", help="don't use gyro correction (default use gyro correction)", action="store_true")
     
     args = parser.parse_args()
 
