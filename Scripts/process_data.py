@@ -106,21 +106,6 @@ def write_output_file(output_filename, vxs, vys, vzs):
         row_vs = [list(elem) for elem in list(zip(vxs, vys, vzs))]
         writer.writerows(row_vs)
 
-def convert_to_constant_rotations(filename, rxs, rys, rzs):
-    const_window_size = 500
-    endswith2020 = filename.endswith("2020.csv")
-    endswith0 = filename.endswith("_0.csv")
-    if True:
-        new_rxs = rxs[:const_window_size] * (len(rxs) // const_window_size)
-        new_rxs += rxs[:len(rxs) % const_window_size]
-        new_rys = rys[:const_window_size] * (len(rys) // const_window_size)
-        new_rys += rys[:len(rys) % const_window_size]
-        new_rzs = rzs[:const_window_size] * (len(rzs) // const_window_size)
-        new_rzs += rzs[:len(rzs) % const_window_size]
-
-        
-    return new_rxs, new_rys, new_rzs
-
 def compute_transformed_accelerations(axs, ays, azs, rxs, rys, rzs):
     """ transforms accelerations by rotations
 
@@ -243,28 +228,33 @@ def plot_avr(relative_filename, axs, ays, azs, vxs, vys, vzs, rxs, rys, rzs):
 
 
 if __name__ == "__main__":
-    # set these flags to change settings
-    is_rolling = True # rolling window or average window flag
-    is_50hz = False # is data sampled at 50hz or 200hz
-    use_split_csv = True # use split_csv or csv directory
-    show_plots = False # show plots or not (if looping through, better not to)
-    single_file = True # only process data for a single file vs. all of the files
-    constant_rotations = False # if need to account for gyro drift, set to True
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--single_file', help="The split csv file to use, e.g. random-Sat Nov 21 17_12_50 2020_1.csv", action="store")
+    parser.add_argument("--average_window", help="use average window (default is rolling window)", action="store_true")
+    parser.add_argument("--show_plots", help="show plots of position curves", action="store_true")
+    parser.add_argument("--is_50hz", help="use 50hz data (default is 200hz data)", action="store_true")
+    parser.add_argument("--use_csv", help="use csv data (default is split_csv data)", action="store_true")
+    
+    args = parser.parse_args()
+
+    is_rolling = not args.average_window # rolling window or average window flag
+    is_50hz = args.is_50hz # is data sampled at 50hz or 200hz
+    use_split_csv = not args.use_csv # use split_csv or csv directory
+    show_plots = args.show_plots # show plots or not (if looping through, better not to)
 
     hz_string = "50hz" if is_50hz else "200hz"
     csv_directory_string = "split_csv" if use_split_csv else "csv"
 
     hz_directory = os.path.join(get_basepath(), "data", csv_directory_string, hz_string)
-    if single_file:
-        relative_filenames = ["random-Sat Nov 21 17_12_50 2020_1.csv"]
+    if args.single_file is not None:
+        relative_filenames = [args.single_file]
     else:
         relative_filenames = os.listdir(hz_directory)
     for relative_filename in relative_filenames:
         filename = os.path.join(get_basepath(), "data", csv_directory_string, hz_string, relative_filename)
 
         axs, ays, azs, rxs, rys, rzs = parse_input_file(filename)
-        if constant_rotations:
-            rxs, rys, rzs = convert_to_constant_rotations(filename, rxs, rys, rzs)
         axs, ays, azs, vxs, vys, vzs = compute_windowed_acc_and_vel(axs, ays, azs, rxs, rys, rzs, is_rolling, is_50hz)
         if show_plots:
             plot_avr(relative_filename, axs, ays, azs, vxs, vys, vzs, rxs, rys, rzs)

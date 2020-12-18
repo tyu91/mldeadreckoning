@@ -123,14 +123,22 @@ def csv_split(infile, outfile, correct_rzs, correct_gyro):
                     nprzs += additive_correction
                     nprows[:, CSVIDXMAP["rz"]] = nprzs
 
-                # do file shit
-                length = 0
-                print(filenum)
-                filenum += 1
-                np.savetxt(outwriter, nprows, delimiter=",", fmt='%s')
-                outwriter.close()
-                outwriter = open(outfile[:-4] + "_" +str(filenum) + ".csv", "w")
-                rows = []
+                if length < MINLEN * 2 * 6:
+                        filenum += 1
+                        np.savetxt(outwriter, nprows, delimiter=",", fmt='%s')
+                        outwriter.close()
+                        outwriter = open(outfile[:-4] + "_" +str(filenum) + ".csv", "w")
+                        rows = []
+                    else:
+                        split_nprows = np.array_split(nprows, length // (MINLEN * 6))
+
+                        for nprow in split_nprows:
+                            filenum += 1
+                            np.savetxt(outwriter, nprow, delimiter=",", fmt='%s')
+                            outwriter.close()
+                            outwriter = open(outfile[:-4] + "_" +str(filenum) + ".csv", "w")
+                            rows = []
+                    length = 0
             length += 1
             # except Exception as e:
             #     # sometimes the last row is incomplete
@@ -141,17 +149,23 @@ def csv_split(infile, outfile, correct_rzs, correct_gyro):
 
 if __name__ == "__main__":
 
-    # csv_split("../data/csv/random-Sat Nov 21 16_20_53 2020.csv")
-    is_50_hz = False
-    correct_rzs = True
-    single_file = True
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--single_file', help="The csv file to use, e.g. random-Sat Nov 21 17_12_50 2020.csv", action="store")
+    parser.add_argument("--is_50hz", help="use 50hz data (default is 200hz data)", action="store_true")
+    parser.add_argument("--regular_rzs", help="don't use rz correction", action="store_true")
+    
+    args = parser.parse_args()
+
+    is_50_hz = args.is_50hz
+    correct_rzs = not args.regular_rzs
 
     hz_string = "50hz" if is_50_hz else "200hz"
     if len(sys.argv) == 3:
         csv_split(sys.argv[1], sys.argv[2], False, True)
     if len(sys.argv) == 1:
-        if single_file:
-            directory = ["random-Sat Nov 21 17_12_50 2020.csv"]
+        if args.single_file is not None:
+            directory = [args.single_file]
         else:
             directory = os.listdir(os.path.join(get_basepath(), "data", "csv", hz_string))
         for fname in directory:

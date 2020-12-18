@@ -4,6 +4,7 @@ import csv
 import matplotlib as mpl
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+import argparse
 
 
 CSVIDXMAP = {
@@ -24,7 +25,8 @@ CSVIDXMAP = {
         }
 
 def get_basepath():
-    return sys.path[0][:-7]
+    return "/Users/tiffoyu/Documents/17728/mldeadreckoning/"
+    # return sys.path[0][:-7]
 
 def plot2d(xys, labels, title, show_plots=True, savefig=False):
     mpl.rcParams['legend.fontsize'] = 10

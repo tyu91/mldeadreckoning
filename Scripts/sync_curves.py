@@ -120,6 +120,8 @@ def ransac(imu_values, gps_values):
 
         # count number of inliers using this transform
         curr_inliers_count, total_l2_error = num_inliers(transform, imu_values, gps_values)
+        if total_l2_error is None:
+            continue
         curr_std = np.std(total_l2_error)
         if curr_inliers_count > inliers and curr_std < best_std:
             inliers = curr_inliers_count
@@ -156,12 +158,22 @@ def compute_affine_transformation(imu_pxs, imu_pys, imu_pzs, gps_pxs, gps_pys, g
     
 
 if __name__ == "__main__":
-    single_file = False # perform odometry on single file vs. all files
-    tag_files = False # write tags to file
-    show_plots = False # plot positions
-    save_plots = True # save plots to data
-    is_50hz = False 
-    sanity_check = False # set to true to make sure RANSAC algo works properly
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--single_file', help="The imu velocity file to use, e.g. random-Sat Nov 21 17_12_50 2020_1_imu_vel_rolling_window.csv", action="store")
+    parser.add_argument("--tag_files", help="label files and store labels in json", action="store_true")
+    parser.add_argument("--show_plots", help="show plots of position curves", action="store_true")
+    parser.add_argument("--save_plots", help="save plots to data/figures directory (WILL overwrite existing figures)", action="store_true")
+    parser.add_argument("--is_50hz", help="use 50hz data (default is 200hz data)", action="store_true")
+    parser.add_argument("--sanity_check", help="ensure that RANSAC algorithm works properly", action="store_true")
+    
+    args = parser.parse_args()
+
+    tag_files = args.tag_files
+    show_plots = args.show_plots
+    save_plots = args.save_plots
+    is_50hz = args.is_50hz
+    sanity_check = args.sanity_check
 
     imu_dt = 1.0 / 50 if is_50hz else 1.0 / 200
     gps_dt = 1 if is_50hz else 1
@@ -173,11 +185,11 @@ if __name__ == "__main__":
     og_gps_directory = os.path.join(get_basepath(), "data", "split_csv", hz_string)
 
     gps_vs_string = "_gps_vel.csv"
-
-    if single_file:
-        imu_paths = ["random-Sat Nov 21 17_12_50 2020_1_imu_vel_rolling_window.csv"]
+    if args.single_file is not None:
+        imu_paths = [args.single_file]
     else:
         imu_paths = os.listdir(imu_vs_directory)
+    
     
     tag_dict = {} # only used of tag_files set to True
 
@@ -197,8 +209,6 @@ if __name__ == "__main__":
                                                                                          imu_dt, 
                                                                                          gps_dt
                                                                                         )
-        if (len(imu_pxs) > 25000):
-            continue
         interp_factor = 20
         imu_pxs, imu_pys, imu_pzs = interpolate_xyz(imu_pxs, imu_pys, imu_pzs, len(gps_pxs) * interp_factor)
         gps_pxs, gps_pys, gps_pzs = interpolate_xyz(gps_pxs, gps_pys, gps_pzs, len(gps_pxs) * interp_factor)
@@ -208,17 +218,38 @@ if __name__ == "__main__":
             fake_gps = np.dot(fake_transform, np.hstack([fake_imu, np.ones((100, 1))]).T).T[:, :2]                                                                                                                                                
             imu_pxs, imu_pys, gps_pxs, gps_pys = compute_affine_transformation(fake_imu[:, 0], fake_imu[:, 1], None, [fake_gps[:, 0]], [fake_gps[:, 1]], None)
         else:
-            imu_pxs, imu_pys, gps_pxs, gps_pys = compute_affine_transformation(imu_pxs, imu_pys, imu_pzs, gps_pxs, gps_pys, gps_pzs)
+            new_imu_pxs, new_imu_pys, new_gps_pxs, new_gps_pys = compute_affine_transformation(imu_pxs, imu_pys, imu_pzs, gps_pxs, gps_pys, gps_pzs)
 
-        assert(len(imu_pxs) == len(gps_pxs))
+        assert(len(new_imu_pxs) == len(new_gps_pxs))
 
-        imu_t = np.arange(0, len(imu_pxs))
-        gps_t = np.arange(0, len(gps_pxs))
+        imu_t_new = np.arange(0, len(new_imu_pxs))
+        gps_t_new = np.arange(0, len(new_gps_pxs))
 
-        plot2d(
-                xys=[(imu_pxs, imu_pys), (gps_pxs, gps_pys)],
-                labels=["positions from imu velocity curve", "positions from gps velocity curve"],
-                title=base_filename,
-                show_plots=show_plots,
-                savefig=True
-            )
+        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(12,8)) # nrows = avr
+
+        ax1.plot(new_imu_pxs, new_imu_pys)
+        ax1.plot(new_gps_pxs, new_gps_pys)
+        # ax1.xlabel("m")
+        # ax1.ylabel("m")
+        ax1.set_title("with transformation")
+
+        ax2.plot(imu_pxs, imu_pys)
+        ax2.plot(gps_pxs, gps_pys)
+        # ax2.xlabel("m")
+        # ax2.ylabel("m")
+        ax2.set_title("without transformation")
+
+        if save_plots:
+            plt.title(base_filename)
+            filename = base_filename + ".png"
+            full_filename = os.path.join(get_basepath(), "data", "figures", filename)
+            fig.savefig(full_filename)
+        plt.close()
+
+        # plot2d(
+        #         xys=[(imu_pxs, imu_pys), (gps_pxs, gps_pys)],
+        #         labels=["positions from imu velocity curve", "positions from gps velocity curve"],
+        #         title=base_filename,
+        #         show_plots=show_plots,
+        #         savefig=True
+        #     )
