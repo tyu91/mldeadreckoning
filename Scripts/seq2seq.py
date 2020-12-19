@@ -21,7 +21,7 @@ class PositionDataset(Dataset):
         :param transform (callable, optional): Optional transform to be applied on a sample.
     """
     def __init__(self, dataset_csv, hz=200):
-        # open json file specifying which velocity files to use
+        # open dataset csv specifying what files to use for train and testing
         self.hz = hz
         full_dataset_csv_path = os.path.join(get_basepath(), "resources", dataset_csv)
         dataset_df = pd.read_csv(full_dataset_csv_path, header=None)
@@ -44,8 +44,8 @@ class PositionDataset(Dataset):
         self.imu_pos_suffix = "_imu_pos.csv"
         self.gps_pos_suffix = "_gps_pos.csv"
 
-        self.imu_positions = [] # (num_samples, window_size, num_axis) where window_size = hz
-        self.gps_positions = [] # (num_samples, num_axis)
+        self.imu_diffs = [] # (num_samples, window_size, num_axis) where window_size = hz
+        self.gps_diffs = [] # (num_samples, num_axis)
 
         # for each velocity csv file, extract imu and gps velocity data
         for basename in self.dataset_list:
@@ -58,19 +58,38 @@ class PositionDataset(Dataset):
                     # for each xyz imu velocity window, save the corresponding gps xyz measurement
                     imu_window = np.array(imu_csv[i*self.hz:i*self.hz+self.hz]) # 200 x 2
                     gps_window = np.expand_dims(np.array(gps_csv.iloc[i]), axis=0) # 1 x 2
+                    imu_window = np.hstack([imu_window[:, 0], imu_window[:, 1]]) # if you want it to be 400 (rn using two separate encoders)
                     imu_position.append(imu_window)
                     gps_position.append(gps_window)
                 except:
                     pass
-            self.imu_positions.append(imu_position)
-            self.gps_positions.append(gps_position)
+            imu_diff = np.array([snd - fst for fst, snd in zip(imu_position[:-1], imu_position[1:])])
+            gps_diff = np.array([snd - fst for fst, snd in zip(gps_position[:-1], gps_position[1:])])
+            self.imu_diffs.append(imu_diff)
+            self.gps_diffs.append(gps_diff)
 
     def __len__(self):
-        return len(self.gps_positions)
+        return len(self.gps_diffs)
 
     def __getitem__(self, idx):
+        return self.imu_diffs[idx], self.gps_diffs[idx]
 
-        return self.imu_positions[idx], self.gps_positions[idx]
+class Encoder(nn.Module):
+    def __init__(self, input_size, emb_size, hidden_size):
+        super(Encoder, self).__init__()
+        self.embedding_size = emb_size # 256 for now
+        self.hidden_size = hidden_size # 128 for now
+        self.input_size = input_size # 200 x 2 np array (400???)
+        self.embedding_layer = nn.Linear(self.input_size, self.embedding_size)
+        self.lstm = nn.LSTM(self.embedding_size, self.hidden_size, batch_first=True, dropout=0.5)
+
+    def forward(self, x):
+        linear_output = self.embedding_layer(x.float())
+        _, hidden_output = self.lstm(linear_output)
+        return hidden_output # of size 
+
+
+
 
 class DeadReckoningModel(nn.Module):
     """Initialize, train, and evaluate neural network to predict imu velocities
@@ -87,47 +106,22 @@ class DeadReckoningModel(nn.Module):
         self.gps_freq = gps_freq
         self.dataset_csv = dataset_csv
 
-        # # define layer sizes
-        # self.input_layer_size = self.imu_freq * 3
-        # self.hidden_layer_input_size = int(self.imu_freq * 2)
-        # self.hidden_layer_output_size = int(self.imu_freq)
-        # self.output_layer_size = 3
+        self.input_size = 400
+        self.emb_size = 256
+        self.hidden_size = 128
 
-        # # define layers
-        # self.input_layer = nn.Linear(self.input_layer_size, self.hidden_layer_input_size)
-        # self.activation1 = nn.Sigmoid()
-        # self.hidden_layer = nn.Linear(self.hidden_layer_input_size, self.hidden_layer_output_size)
-        # self.activation2 = nn.Sigmoid()
-        # self.output_layer = nn.Linear(self.hidden_layer_output_size, self.output_layer_size)
-        # self.activation3 = nn.ReLU()
-
-        # define dataloaders for training and testing
-        # self.imu_vs_directory = os.path.join(basepath, "data", "imu_vs")
-        # self.gps_vs_directory = os.path.join(basepath, "data", "gps_vs")
-        # self.train_tag_file = os.path.join(self.basepath, "resources", "train_tag_files.json")
-        # self.test_tag_file = os.path.join(self.basepath, "resources", "test_tag_files.json")
+        self.encoder = Encoder(self.input_size, self.emb_size, self.hidden_size)
+        self.encoder_opt = optim.Adam(self.encoder.parameters(), lr=0.001)
 
         self.train_dataset = PositionDataset(self.dataset_csv)
-        self.train_dataloader = DataLoader(self.train_dataset, batch_size=1,
-                                shuffle=True)
+        self.train_dataloader = DataLoader(self.train_dataset, batch_size=1,shuffle=True)
 
-        # Define the loss
-        self.criterion = nn.MSELoss()
-        # define optimizer
-        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        # # Define the loss
+        # self.criterion = nn.MSELoss()
+        # # define optimizer
+        # self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         # define num epochs
         self.epochs = 10
-        
-    def forward(self, x):
-        """Pass the input tensor through each layer to produce output"""
-        x = self.input_layer(x)
-        x = self.activation1(x)
-        x = self.hidden_layer(x)
-        x = self.activation2(x)
-        x = self.output_layer(x)
-        x = self.activation3(x)
-        
-        return x
 
     def train_sample(self, sample):
         """train a single sample"""
@@ -139,7 +133,9 @@ class DeadReckoningModel(nn.Module):
             running_loss = 0
             for sample, gt in self.train_dataloader:    
                 # Training pass
-                self.optimizer.zero_grad()
+                self.encoder.forward(sample)
+                import pdb; pdb.set_trace()
+                self.encoder_opt.zero_grad()
                 output = self.train_sample(sample)
                 loss = self.criterion(output, gt.float())
                 loss.backward()
