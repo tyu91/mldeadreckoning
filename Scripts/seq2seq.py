@@ -20,20 +20,10 @@ class PositionDataset(Dataset):
         :param hz (int): sample frequency of imu, doubles as window_size (true while gps sample rate is 1 Hz).\n
         :param transform (callable, optional): Optional transform to be applied on a sample.
     """
-    def __init__(self, dataset_csv, hz=200):
+    def __init__(self, train_list, hz=200):
         # open dataset csv specifying what files to use for train and testing
         self.hz = hz
-        full_dataset_csv_path = os.path.join(get_basepath(), "resources", dataset_csv)
-        dataset_df = pd.read_csv(full_dataset_csv_path, header=None)
-        self.dataset_list = []
-
-        # extract good files into dataset and add to list of pos names
-        for i in range(0, len(dataset_df)):
-            png_name, yes_no = tuple(dataset_df.iloc[i])
-            if yes_no.lower().strip(" ") == "yes":
-                # if png is labelled as "good", add name to self.dataset_list
-                base_name = png_name.strip(".png")
-                self.dataset_list.append(base_name)
+        self.dataset_list = train_list
     
         # set base dirs for imu and gps pos
         self.imu_pos_directory = os.path.join(get_basepath(), "data", "imu_pos")
@@ -72,7 +62,7 @@ class PositionDataset(Dataset):
         return len(self.gps_diffs)
 
     def __getitem__(self, idx):
-        return self.imu_diffs[idx], self.gps_diffs[idx]
+        return self.imu_diffs[idx], self.gps_diffs[idx], self.dataset_list[idx]
 
 class Encoder(nn.Module):
     def __init__(self, input_size, emb_size, hidden_size):
@@ -94,13 +84,12 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, emb_size, hidden_size, output_size, bc=True):
+    def __init__(self, emb_size, hidden_size, output_size):
         super(Decoder, self).__init__()
         # initialize variables
         self.embedding_size = emb_size
         self.hidden_size = hidden_size
         self.output_size = output_size
-        self.bc = bc
 
         # create nn layers
         self.embedding_layer = nn.Linear(self.output_size, self.embedding_size)
@@ -109,7 +98,7 @@ class Decoder(nn.Module):
 
         self.loss_fn = nn.MSELoss()
 
-    def forward(self, hidden_input, sample_length, output_length, ground_truth):
+    def forward(self, hidden_input, sample_length, output_length, ground_truth, beta):
         curr_hidden = hidden_input
 
         predicted_output = []
@@ -124,7 +113,7 @@ class Decoder(nn.Module):
             new_raw_output = self.output_layer(new_output)
             gt_t = gt[t].unsqueeze(0)
             loss += self.loss_fn(new_raw_output, gt_t.float())
-            if self.bc:
+            if np.random.binomial(1, beta, 1)[0] == 1:
                 curr_embedded_output = self.embedding_layer(gt_t.float())
             else:
                 curr_embedded_output = self.embedding_layer(new_raw_output)
@@ -140,13 +129,15 @@ class DeadReckoningModel(nn.Module):
         :imu_freq (optional): imu frequency, default=50\n
         :gps_freq (optional): gps frequency.
     """
-    def __init__(self, dataset_csv, imu_freq=200, gps_freq=1):
+    def __init__(self, dataset_csv, beta, train_percent, num_epochs, imu_freq=200, gps_freq=1):
         super().__init__()
         
         self.basepath = get_basepath()
         self.imu_freq = imu_freq
         self.gps_freq = gps_freq
         self.dataset_csv = dataset_csv
+        self.beta = beta
+        self.train_percent = train_percent
 
         self.input_size = 400
         self.emb_size = 256
@@ -158,19 +149,32 @@ class DeadReckoningModel(nn.Module):
         self.decoder = Decoder(self.emb_size, self.hidden_size, self.output_size)
         self.decoder_opt = optim.Adam(self.decoder.parameters(), lr=0.001)
 
-        self.train_dataset = PositionDataset(self.dataset_csv)
+        # split into train and test datasets
+        self.train_list = []
+        self.test_list = []
+        self.split_train_test()
+
+        self.train_dataset = PositionDataset(self.train_list)
         self.train_dataloader = DataLoader(self.train_dataset, batch_size=1,shuffle=True)
-
-        # # Define the loss
-        # self.criterion = nn.MSELoss()
-        # # define optimizer
-        # self.optimizer = optim.Adam(self.parameters(), lr=0.001)
+        self.test_dataset = PositionDataset(self.test_list)
+        self.test_dataloader = DataLoader(self.test_dataset, batch_size=1,shuffle=True)
+    
         # define num epochs
-        self.epochs = 50
+        self.epochs = num_epochs
 
-    # def train_sample(self, sample):
-    #     """train a single sample"""
-    #     return self.forward(sample.float())
+    def split_train_test(self):
+        full_dataset_csv_path = os.path.join(get_basepath(), "resources", self.dataset_csv)
+        dataset_df = pd.read_csv(full_dataset_csv_path, header=None)
+
+        # extract good files into dataset and add to list of pos names
+        for i in range(0, len(dataset_df)):
+            png_name, _ = tuple(dataset_df.iloc[i])
+            base_name = png_name.strip(".png")
+            if np.random.binomial(1, self.train_percent, 1)[0] == 1:
+                # if png is labelled as "yes", add name to self.train_list
+                self.train_list.append(base_name)
+            else:
+                self.test_list.append(base_name)
 
     def diff_to_pos(self, diffs):
         """convert dx,dy to x,y positions
@@ -197,17 +201,17 @@ class DeadReckoningModel(nn.Module):
         for e in range(self.epochs):
             running_loss = 0
             running_acc = 0
-            for sample, gt in self.train_dataloader:  
+            for sample, gt, _ in self.train_dataloader:  
                 self.encoder_opt.zero_grad()
                 self.decoder_opt.zero_grad()
 
                 # Training pass
                 hidden = self.encoder.forward(sample)
                 gt = gt.squeeze(0)
-                predicted_output, loss = self.decoder.forward(hidden, len(sample), len(gt), gt)
+                predicted_output, loss = self.decoder.forward(hidden, len(sample), len(gt), gt, self.beta)
                 loss /= len(gt)
 
-                # compute accuracy
+                # compute accuracy (l2norm between predicted and ground truth position)
                 gt_pos = self.diff_to_pos(gt)
                 gt_x, gt_y = np.array(gt_pos[:len(gt)]), np.array(gt_pos[len(gt):])
                 gt_xy = np.vstack([gt_x, gt_y]).T
@@ -225,58 +229,45 @@ class DeadReckoningModel(nn.Module):
                 running_loss += loss.item()
                 running_acc += acc
             else:
-                print(f"Epoch: {e} Training loss: {running_loss/len(self.train_dataloader)}")
+                print(f"Epoch: {e} Training loss: {running_loss/len(self.train_dataloader)} Training accuracy: {running_acc/len(self.train_dataloader)}")
     
     def evaluate(self):
         """evaluate model on paths specified in self.test_tag_file"""
+        with torch.no_grad():
+            for sample, gt, basename in self.test_dataloader:
+                # Training pass
+                hidden = self.encoder.forward(sample)
+                gt = gt.squeeze(0)
+                predicted_output, loss = self.decoder.forward(hidden, len(sample), len(gt), gt, 1)
+                loss /= len(gt)
 
-        with open(self.test_tag_file, "r") as jsonfile:
-            tagged_paths = json.load(jsonfile)
+                # compute accuracy (l2norm between predicted and ground truth position)
+                gt_pos = self.diff_to_pos(gt)
+                gt_x, gt_y = np.array(gt_pos[:len(gt)]), np.array(gt_pos[len(gt):])
+                gt_xy = np.vstack([gt_x, gt_y]).T
+                
+                sample = sample.squeeze(0)
+                sample = np.vstack([sample[:, self.imu_freq-1], sample[:, self.imu_freq*2-1]]).T
+                sample = np.expand_dims(sample, axis=1)
+                imu_pos = self.diff_to_pos(sample)
+                imu_x, imu_y = np.array(imu_pos[:len(sample)]), np.array(imu_pos[len(sample):])
+                imu_xy = np.vstack([imu_x, imu_y]).T
 
-        for filename, description in tagged_paths.items():
-            # for each file specified in the test tag file, compute position using odometry
-            basename = filename.split(".gpx")[0]
+                pred_pos = self.diff_to_pos(predicted_output)
+                pred_x, pred_y = np.array(pred_pos[:len(predicted_output)]), np.array(pred_pos[len(predicted_output):])
+                pred_xy = np.vstack([pred_x, pred_y]).T
+                
 
+                acc = np.mean(np.linalg.norm(pred_xy - gt_xy, axis=1))
 
-            # extract velocities for raw imu velocities and gps velocities
-            imu_filename = os.path.join(self.imu_vs_directory, basename + self.train_dataset.imu_vs_suffix)
-            gps_filename = os.path.join(self.gps_vs_directory, basename + self.train_dataset.gps_vs_suffix)
-            raw_imu_vxs, raw_imu_vys, raw_imu_vzs = get_vs_from_file(imu_filename)
-            gps_vxs, gps_vys, gps_vzs = get_vs_from_file(gps_filename)
-
-            # consolidate xyz velocities for raw imu velocities
-            raw_imu_vs = np.stack([np.array(raw_imu_vxs), np.array(raw_imu_vys), np.array(raw_imu_vzs)]).T
-
-            imu_vs = None
-
-            for i in range(0, len(raw_imu_vxs) - self.imu_freq):
-                try:
-                    # pass raw imu velocities into neural network and save these output velocities to imu_vs
-                    raw_sample = raw_imu_vs[i:i + self.imu_freq, :]
-                    sample = np.concatenate([raw_sample[:, 0], raw_sample[:, 1], raw_sample[:, 2]], axis=0)
-                    output = self.train_sample(torch.from_numpy(sample))
-                    if imu_vs is None:
-                        imu_vs = np.expand_dims(output.detach().numpy(), axis=0)
-                    else:  
-                        imu_vs = np.concatenate([imu_vs, np.expand_dims(output.detach().numpy(), axis=0)], axis=0)
-                except:
-                    pass
-
-            # compute xyz positions from computed velocities. 
-            raw_imu_pxs, raw_imu_pys, raw_imu_pzs = get_xyz_poses(raw_imu_vxs, raw_imu_vys, raw_imu_vzs, 1.0 / self.imu_freq)
-            imu_pxs, imu_pys, imu_pzs = get_xyz_poses(imu_vs[:, 0], imu_vs[:, 1], imu_vs[:, 2], 1.0 / self.imu_freq)
-            gps_pxs, gps_pys, gps_pzs = get_xyz_poses(gps_vxs, gps_vys, gps_vzs, 1.0 / self.gps_freq)         
-
-            # plot xyz positions
-            plot3d(
-                xyzs=[(raw_imu_pxs, raw_imu_pys, raw_imu_pzs), \
-                      (imu_pxs, imu_pys, imu_pzs), \
-                      (gps_pxs, gps_pys, gps_pzs)],
-                labels=["positions from raw imu velocity curve", \
-                        "positions from imu velocity curve", \
-                        "positions from gps velocity curve"],
-                title=basename
-            )
+                # plot the results compared to regular transform
+                plot2d(
+                        xys = [(gt_x, gt_y), (pred_x, pred_y), (imu_x, imu_y)],
+                        labels=["ground truth gps", "predicted position based on imu", "original imu position with transformation"], 
+                        title=basename[0]
+                    )
+            else:
+                print(f"Test loss: {loss} Test accuracy: {acc}")
 
     def save_model(self, modelname):
         if not os.path.exists(os.path.join(self.basepath, "models")):
@@ -290,19 +281,25 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--dataset_csv', help="The dataset csv file to use, e.g. small_dataset.csv", action="store", required=True)
-    parser.add_argument("--train", help="train (default is evaluate)", action="store_true")
+    # parser.add_argument("--train", help="train (default is evaluate)", action="store_true")
+    parser.add_argument("--eval_model", help="specify which model to evaluate dataset with", action="store")
     
     args = parser.parse_args()
-    train_mode = args.train
+    train_mode = args.eval_model is None
 
-    model = DeadReckoningModel(dataset_csv=args.dataset_csv)
+    beta = 0.5
+    train_percent = 0.8
+    num_epochs = 100
+
+    model = DeadReckoningModel(dataset_csv=args.dataset_csv, beta=beta, train_percent=train_percent, num_epochs=num_epochs)
 
     if train_mode:
         model.train()
+        model.evaluate()
         # save model with timestamp to avoid overwriting old models
-        model_name = "simplemodel_" + str(datetime.datetime.now()).split(".")[0].replace(":", ".")
+        model_name = "seq2seqmodel_" + str(datetime.datetime.now()).split(".")[0].replace(":", ".")
         model.save_model(model_name)
         print(model_name)
     else:
-        model.load_model("simplemodel_2020-12-01 00.16.14")
+        model.load_model(args.eval_model)
         model.evaluate()

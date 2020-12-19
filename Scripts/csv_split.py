@@ -40,17 +40,20 @@ def csv_split(infile, outfile, correct_rzs, correct_gyro):
             # try:
             if not is_float(row[0]): # if it's the header, drop it
                 continue
-            rows.append(row)
-            gxs.append(float(row[CSVIDXMAP["gx"]]))
-            gxs = gxs[-400:]
-            gys.append(float(row[CSVIDXMAP["gy"]]))
-            gys = gys[-400:]
-            gzs.append(float(row[CSVIDXMAP["gz"]]))
-            gzs = gzs[-400:]
-            vels.append(float(row[CSVIDXMAP["velocity"]]))
-            vels = vels[-400:]
-            rzs.append(float(row[CSVIDXMAP["rz"]]))
-            rzs = rzs[-400:]
+            try:
+                rows.append(row)
+                gxs.append(float(row[CSVIDXMAP["gx"]]))
+                gxs = gxs[-400:]
+                gys.append(float(row[CSVIDXMAP["gy"]]))
+                gys = gys[-400:]
+                gzs.append(float(row[CSVIDXMAP["gz"]]))
+                gzs = gzs[-400:]
+                vels.append(float(row[CSVIDXMAP["velocity"]]))
+                vels = vels[-400:]
+                rzs.append(float(row[CSVIDXMAP["rz"]]))
+                rzs = rzs[-400:]
+            except:
+                continue
 
             # if length of sample at least MINLEN and velocity is close to 0, create new file.
             if (np.average(vels) < 0.1 and length > MINLEN):
@@ -168,19 +171,16 @@ if __name__ == "__main__":
     correct_rzs = not args.regular_rzs
 
     hz_string = "50hz" if is_50_hz else "200hz"
-    if len(sys.argv) == 3:
-        csv_split(sys.argv[1], sys.argv[2], False, True)
-    if len(sys.argv) == 1:
-        if args.single_file is not None:
-            directory = [args.single_file]
-        else:
-            directory = os.listdir(os.path.join(get_basepath(), "data", "csv", hz_string))
-        for fname in directory:
-            if ".csv" not in fname:
-                continue
-            infile = os.path.join(get_basepath(), "data", "csv", hz_string, fname)
-            outfile = os.path.join(get_basepath(), "data", "split_csv", hz_string, fname)
-            csv_split(infile, outfile, correct_rzs)
+    if args.single_file is not None:
+        directory = [args.single_file]
+    else:
+        directory = os.listdir(os.path.join(get_basepath(), "data", "csv", hz_string))
+    for fname in directory:
+        if ".csv" not in fname:
+            continue
+        infile = os.path.join(get_basepath(), "data", "csv", hz_string, fname)
+        outfile = os.path.join(get_basepath(), "data", "split_csv", hz_string, fname)
+        csv_split(infile, outfile, correct_rzs, args.regular_gyro)
     # else:
     #     print("USAGE: python log_to_gpx.py $INFILE $OUTFILE")
     #     exit()
