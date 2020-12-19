@@ -77,18 +77,60 @@ class PositionDataset(Dataset):
 class Encoder(nn.Module):
     def __init__(self, input_size, emb_size, hidden_size):
         super(Encoder, self).__init__()
+        # initialize variables
         self.embedding_size = emb_size # 256 for now
         self.hidden_size = hidden_size # 128 for now
-        self.input_size = input_size # 200 x 2 np array (400???)
+        self.input_size = input_size # 400 (2 x 200 stacked)
+    
+        # create nn layers
         self.embedding_layer = nn.Linear(self.input_size, self.embedding_size)
-        self.lstm = nn.LSTM(self.embedding_size, self.hidden_size, batch_first=True, dropout=0.5)
+        self.lstm = nn.LSTM(self.embedding_size, self.hidden_size, dropout=0.5)
 
     def forward(self, x):
+        x = x.permute(1, 0, 2) # get into shape len * 1 * 400
         linear_output = self.embedding_layer(x.float())
         _, hidden_output = self.lstm(linear_output)
-        return hidden_output # of size 
+        return hidden_output # of size ([1, 1, 128], [1, 1, 128])
 
 
+class Decoder(nn.Module):
+    def __init__(self, emb_size, hidden_size, output_size, bc=True):
+        super(Decoder, self).__init__()
+        # initialize variables
+        self.embedding_size = emb_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.bc = bc
+
+        # create nn layers
+        self.embedding_layer = nn.Linear(self.output_size, self.embedding_size)
+        self.lstm = nn.LSTM(self.embedding_size, self.hidden_size)
+        self.output_layer = nn.Linear(self.hidden_size, self.output_size)
+
+        self.loss_fn = nn.MSELoss()
+
+    def forward(self, hidden_input, sample_length, output_length, ground_truth):
+        curr_hidden = hidden_input
+
+        predicted_output = []
+        loss = 0
+        curr_output = torch.ones([1, 2])
+        curr_embedded_output = self.embedding_layer(curr_output).unsqueeze(0)
+
+        gt = ground_truth.squeeze(0) # shape is len x 1 x 2
+
+        for t in range(output_length):
+            new_output, new_hidden = self.lstm(curr_embedded_output, curr_hidden)
+            new_raw_output = self.output_layer(new_output)
+            gt_t = gt[t].unsqueeze(0)
+            loss += self.loss_fn(new_raw_output, gt_t.float())
+            if self.bc:
+                curr_embedded_output = self.embedding_layer(gt_t.float())
+            else:
+                curr_embedded_output = self.embedding_layer(new_raw_output)
+            curr_hidden = new_hidden
+            predicted_output.append(new_raw_output.squeeze(0))
+        return predicted_output, loss
 
 
 class DeadReckoningModel(nn.Module):
@@ -109,9 +151,12 @@ class DeadReckoningModel(nn.Module):
         self.input_size = 400
         self.emb_size = 256
         self.hidden_size = 128
+        self.output_size = 2
 
         self.encoder = Encoder(self.input_size, self.emb_size, self.hidden_size)
         self.encoder_opt = optim.Adam(self.encoder.parameters(), lr=0.001)
+        self.decoder = Decoder(self.emb_size, self.hidden_size, self.output_size)
+        self.decoder_opt = optim.Adam(self.decoder.parameters(), lr=0.001)
 
         self.train_dataset = PositionDataset(self.dataset_csv)
         self.train_dataloader = DataLoader(self.train_dataset, batch_size=1,shuffle=True)
@@ -121,27 +166,64 @@ class DeadReckoningModel(nn.Module):
         # # define optimizer
         # self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         # define num epochs
-        self.epochs = 10
+        self.epochs = 50
 
-    def train_sample(self, sample):
-        """train a single sample"""
-        return self.forward(sample.float())
+    # def train_sample(self, sample):
+    #     """train a single sample"""
+    #     return self.forward(sample.float())
+
+    def diff_to_pos(self, diffs):
+        """convert dx,dy to x,y positions
+        
+        :param diffs: list of dx, dy to convert to a true trajectory
+        """
+        output_positions = np.zeros([len(diffs) * 2,])
+        cx = 0
+        cy = 0
+        for i in range(len(diffs)):
+            diff = diffs[i]
+            dx, dy = tuple(diff.squeeze(0))
+            cx += dx
+            cy += dy
+
+            output_positions[i] = cx
+            output_positions[len(diffs) + i] = cy
+
+        return output_positions
+
 
     def train(self):
         """train model for multiple epochs"""
         for e in range(self.epochs):
             running_loss = 0
-            for sample, gt in self.train_dataloader:    
-                # Training pass
-                self.encoder.forward(sample)
-                import pdb; pdb.set_trace()
+            running_acc = 0
+            for sample, gt in self.train_dataloader:  
                 self.encoder_opt.zero_grad()
-                output = self.train_sample(sample)
-                loss = self.criterion(output, gt.float())
-                loss.backward()
-                self.optimizer.step()
-                
+                self.decoder_opt.zero_grad()
+
+                # Training pass
+                hidden = self.encoder.forward(sample)
+                gt = gt.squeeze(0)
+                predicted_output, loss = self.decoder.forward(hidden, len(sample), len(gt), gt)
+                loss /= len(gt)
+
+                # compute accuracy
+                gt_pos = self.diff_to_pos(gt)
+                gt_x, gt_y = np.array(gt_pos[:len(gt)]), np.array(gt_pos[len(gt):])
+                gt_xy = np.vstack([gt_x, gt_y]).T
+                pred_pos = self.diff_to_pos(predicted_output)
+                pred_x, pred_y = np.array(pred_pos[:len(predicted_output)]), np.array(pred_pos[len(predicted_output):])
+                pred_xy = np.vstack([pred_x, pred_y]).T
+
+                acc = np.mean(np.linalg.norm(pred_xy - gt_xy, axis=1))
+
+                # update network
+                loss.backward(retain_graph=True)
+                self.encoder_opt.step()
+                self.decoder_opt.step()
+
                 running_loss += loss.item()
+                running_acc += acc
             else:
                 print(f"Epoch: {e} Training loss: {running_loss/len(self.train_dataloader)}")
     
