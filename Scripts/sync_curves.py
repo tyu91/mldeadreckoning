@@ -164,7 +164,7 @@ if __name__ == "__main__":
     parser.add_argument("--tag_files", help="label files and store labels in json", action="store_true")
     parser.add_argument("--show_plots", help="show plots of position curves", action="store_true")
     parser.add_argument("--save_plots", help="save plots to data/figures directory (WILL overwrite existing figures)", action="store_true")
-    parser.add_argument("--save_pos", help="save output gps position to csv", action="store_true")
+    parser.add_argument("--save_pos", help="save output gps and imu position to csv", action="store_true")
     parser.add_argument("--is_50hz", help="use 50hz data (default is 200hz data)", action="store_true")
     parser.add_argument("--sanity_check", help="ensure that RANSAC algorithm works properly", action="store_true")
     

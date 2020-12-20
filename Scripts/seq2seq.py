@@ -129,15 +129,18 @@ class DeadReckoningModel(nn.Module):
         :imu_freq (optional): imu frequency, default=50\n
         :gps_freq (optional): gps frequency.
     """
-    def __init__(self, dataset_csv, beta, train_percent, num_epochs, imu_freq=200, gps_freq=1):
+    def __init__(self, dataset_csv, test_files, beta, train_percent, num_epochs, gps_dropout, imu_freq=200, gps_freq=1):
         super().__init__()
         
         self.basepath = get_basepath()
         self.imu_freq = imu_freq
         self.gps_freq = gps_freq
         self.dataset_csv = dataset_csv
+        self.test_files = test_files
         self.beta = beta
         self.train_percent = train_percent
+        self.epochs = num_epochs
+        self.gps_dropout = gps_dropout
 
         self.input_size = 400
         self.emb_size = 256
@@ -158,23 +161,26 @@ class DeadReckoningModel(nn.Module):
         self.train_dataloader = DataLoader(self.train_dataset, batch_size=1,shuffle=True)
         self.test_dataset = PositionDataset(self.test_list)
         self.test_dataloader = DataLoader(self.test_dataset, batch_size=1,shuffle=True)
-    
-        # define num epochs
-        self.epochs = num_epochs
 
     def split_train_test(self):
-        full_dataset_csv_path = os.path.join(get_basepath(), "resources", self.dataset_csv)
-        dataset_df = pd.read_csv(full_dataset_csv_path, header=None)
+        full_test_files_path = os.path.join(get_basepath(), "resources", self.test_files)
+        test_files_set = set()
+        with open(full_test_files_path) as test_file:
+            lines = test_file.readlines()
+            for line in lines:
+                test_files_set.add(line.strip())
+        
+        self.test_list = list(test_files_set)
+
+        full_dataset_path = os.path.join(get_basepath(), "resources", self.dataset_csv)
+        dataset_df = pd.read_csv(full_dataset_path, header=None)
 
         # extract good files into dataset and add to list of pos names
         for i in range(0, len(dataset_df)):
             png_name, _ = tuple(dataset_df.iloc[i])
             base_name = png_name.strip(".png")
-            if np.random.binomial(1, self.train_percent, 1)[0] == 1:
-                # if png is labelled as "yes", add name to self.train_list
+            if base_name not in test_files_set:
                 self.train_list.append(base_name)
-            else:
-                self.test_list.append(base_name)
 
     def diff_to_pos(self, diffs):
         """convert dx,dy to x,y positions
@@ -238,7 +244,7 @@ class DeadReckoningModel(nn.Module):
                 # Training pass
                 hidden = self.encoder.forward(sample)
                 gt = gt.squeeze(0)
-                predicted_output, loss = self.decoder.forward(hidden, len(sample), len(gt), gt, 1)
+                predicted_output, loss = self.decoder.forward(hidden, len(sample), len(gt), gt, 1.0-self.gps_dropout)
                 loss /= len(gt)
 
                 # compute accuracy (l2norm between predicted and ground truth position)
@@ -281,7 +287,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--dataset_csv', help="The dataset csv file to use, e.g. small_dataset.csv", action="store", required=True)
-    # parser.add_argument("--train", help="train (default is evaluate)", action="store_true")
+    parser.add_argument('--test_files', help="The dataset txt file to use, e.g. small_dataset_test_list.txt", action="store", required=True)
     parser.add_argument("--eval_model", help="specify which model to evaluate dataset with", action="store")
     
     args = parser.parse_args()
@@ -290,8 +296,9 @@ if __name__ == "__main__":
     beta = 0.5
     train_percent = 0.8
     num_epochs = 100
+    gps_dropout = 0
 
-    model = DeadReckoningModel(dataset_csv=args.dataset_csv, beta=beta, train_percent=train_percent, num_epochs=num_epochs)
+    model = DeadReckoningModel(dataset_csv=args.dataset_csv, test_files=args.test_files, beta=beta, train_percent=train_percent, num_epochs=num_epochs, gps_dropout=gps_dropout)
 
     if train_mode:
         model.train()
