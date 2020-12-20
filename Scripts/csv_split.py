@@ -37,8 +37,21 @@ def csv_split(infile, outfile, correct_rzs, correct_gyro):
         reader = csv.reader(csvfile)
         new_file = True
         for row in reader:
-            # try:
-            if not is_float(row[0]): # if it's the header, drop it
+            try:
+                if not is_float(row[0]): # if it's the header, drop it
+                    continue
+                rows.append(row)
+                gxs.append(float(row[CSVIDXMAP["gx"]]))
+                gxs = gxs[-400:]
+                gys.append(float(row[CSVIDXMAP["gy"]]))
+                gys = gys[-400:]
+                gzs.append(float(row[CSVIDXMAP["gz"]]))
+                gzs = gzs[-400:]
+                vels.append(float(row[CSVIDXMAP["velocity"]]))
+                vels = vels[-400:]
+                rzs.append(float(row[CSVIDXMAP["rz"]]))
+                rzs = rzs[-400:]
+            except:
                 continue
             try:
                 rows.append(row)
@@ -59,69 +72,6 @@ def csv_split(infile, outfile, correct_rzs, correct_gyro):
             if (np.average(vels) < 0.1 and length > MINLEN):
                 nprows = np.array(rows)
                 values = nprows[:, CSVIDXMAP["rz"]].astype(float) 
-
-                
-
-                # calculate gyro offsets
-                if correct_gyro:
-                    # under the assumption that we have now been stationary, or near it, for a while
-                    # gx_adj = -np.average(gxs)
-                    # gy_adj = -np.average(gys)
-                    # gz_adj = -np.average(gzs)
-                    # npgxs = nprows[:, CSVIDXMAP["gx"]].astype(float) 
-                    # npgxs = np.add(npgxs, gx_adj)
-                    # nprows[:, CSVIDXMAP["gx"]] = npgxs
-                    # npgys = nprows[:, CSVIDXMAP["gy"]].astype(float) 
-                    # npgys = np.add(npgys, gy_adj)
-                    # nprows[:, CSVIDXMAP["gy"]] = npgys
-                    # npgzs = nprows[:, CSVIDXMAP["gz"]].astype(float) 
-                    # npgzs = np.add(npgzs, gz_adj)
-                    # nprows[:, CSVIDXMAP["gz"]] = npgzs
-
-                    # print("GX:", gx_adj)
-                    # print("GY:", gy_adj)
-                    # print("GZ:", gz_adj)
-
-                    # recalc all the sensor fusion...
-                    # https://ahrs.readthedocs.io/en/latest/filters/madgwick.html
-                    # read all the imu data (each row is the triplet of xyz)
-                    acc_data = np.array([nprows[:, CSVIDXMAP["ax"]].astype(float), nprows[:, CSVIDXMAP["ay"]].astype(float), nprows[:, CSVIDXMAP["az"]].astype(float)]).transpose()
-                    gyro_data = np.array([nprows[:, CSVIDXMAP["gx"]].astype(float), nprows[:, CSVIDXMAP["gy"]].astype(float), nprows[:, CSVIDXMAP["gz"]].astype(float)]).transpose()
-
-                    # pull out initial old rotation to use as the baseline
-                    init = [nprows[:, CSVIDXMAP["rx"]].astype(float)[0], nprows[:, CSVIDXMAP["ry"]].astype(float)[0], nprows[:, CSVIDXMAP["rz"]].astype(float)[0]]
-                    # get initial orientation from the data we already have
-                    r = R.from_euler(seq='xyz', angles=init, degrees=True)
-                    q_last = r.as_quat()
-                    madgwick = Madgwick(frequency=200.0, q0 = r.as_quat(), gain=0.4)
-                    print("init:")
-                    eulers = r.as_euler(seq='xyz', degrees=True)
-                    print("x:", eulers[0], "y:", eulers[1], "z:", eulers[2])
-                    new_rxs = []
-                    new_rys = []
-                    new_rzs = []
-                    for i in range(len(acc_data)):
-                        # gyro needs to be in radians
-                        conv_gyro = (gyro_data[i] / 57.2957795131)
-                        # acc needs to be in m/s2
-                        conv_acc = (acc_data[i] * 9.81)
-                        # print("acc:", conv_acc)
-                        # print("gyr:", conv_gyro)
-                        q = madgwick.updateIMU(gyr=conv_gyro, acc=conv_acc, q=q_last)
-                        # convert output back to euler angles and append to new lists
-                        eulers = R.from_quat(q).as_euler(seq='xyz', degrees=True)
-                        print("x:", eulers[0], "y:", eulers[1], "z:", eulers[2])
-                        new_rxs.append(eulers[0])
-                        new_rys.append(eulers[1])
-                        new_rzs.append(eulers[2])
-                        q_last = q
-
-
-                    nprows[:, CSVIDXMAP["rx"]] = new_rxs
-                    nprows[:, CSVIDXMAP["ry"]] = new_rys
-                    nprows[:, CSVIDXMAP["rz"]] = new_rzs
-                    # quats = madgwick.Q.shape
-
 
                 # update rzs with additive correction
                 # AFTER gyro -> rotation is corrected, if we have it
@@ -180,7 +130,7 @@ if __name__ == "__main__":
             continue
         infile = os.path.join(get_basepath(), "data", "csv", hz_string, fname)
         outfile = os.path.join(get_basepath(), "data", "split_csv", hz_string, fname)
-        csv_split(infile, outfile, correct_rzs, args.regular_gyro)
+        csv_split(infile, outfile, correct_rzs, 0)
     # else:
     #     print("USAGE: python log_to_gpx.py $INFILE $OUTFILE")
     #     exit()

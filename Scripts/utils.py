@@ -21,7 +21,13 @@ CSVIDXMAP = {
             "long": 10,
             "alt": 11,
             "time": 12,
-            "velocity": 13
+            "velocity": 13,
+            "gps_velx": 14,
+            "gps_vely": 15,
+            "gps_velz": 16, 
+            "gps_posx": 17, 
+            "gps_posy": 18, 
+            "gps_posz": 19
         }
 
 def get_basepath():

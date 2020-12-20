@@ -9,6 +9,88 @@ from pathlib import Path
 import utm
 from utils import *
 
+def calc_velocity_from_arr(input_arr):
+    dt = 1 # to be changed later cuz were only sampling at 1Hz
+    alt = []
+    lat_lon = []
+    time = []
+
+    for row in input_arr:
+        try:
+            z = float(row[CSVIDXMAP["alt"]][1:])
+            lat = float(row[CSVIDXMAP["lat"]][1:])
+            lon = float(row[CSVIDXMAP["long"]][1:])
+            temp = [lat, lon]
+
+            # unique times only
+            #if(row[12] not in time):
+            time.append(row[CSVIDXMAP["time"]])
+            #store into lists
+            alt.append(z)
+            lat_lon.append([lat, lon])
+
+        except:
+            # sometimes the last row is incomplete
+            pass
+
+
+    # velocity time, assuming sampled at 1hz
+    velx = [] #x axis is east west direction
+    vely = [] #y axis is north south direction
+    vel = []
+    
+    for i in range (len(lat_lon)-1):
+        prev_lat = lat_lon[i][0]
+        prev_lon = lat_lon[i][1]
+        curr_lat = lat_lon[i + 1][0]
+        curr_lon = lat_lon[i + 1][1]
+        if prev_lat == 0 or prev_lon == 0:
+            continue
+        if (math.isclose(prev_lat, curr_lat) and math.isclose(prev_lon, curr_lon)):
+            if i==0:
+                velx.append(0)
+                vely.append(0)
+                vel.append(0)
+            else:
+                velx.append(velx[i-1])
+                vely.append(vely[i-1])
+                vel.append(vel[i-1])
+            continue
+        prev_x, prev_y, _, _ = utm.from_latlon(prev_lat, prev_lon)
+        curr_x, curr_y, _, _ = utm.from_latlon(curr_lat, curr_lon)
+        
+        dirx = 1
+        diry = 1
+
+        # direrction
+        distx = (curr_x - prev_x) # TODO: negate to display properly but may fuck with position
+        disty = curr_y - prev_y
+        #print("here")
+        velx.append(dirx*distx/dt) #since its 1 second update
+        vely.append(diry*disty/dt) #since its 1 second update
+        vel.append(distance.geodesic(lat_lon[i+1], lat_lon[i],  ellipsoid='WGS-84').km * 1000)
+        
+    # elevation in feet convert to meters
+    velz = []
+    velz.append(0)
+    prev_velz = 0
+    for i in range (len(alt)-1):
+        prev_alt = alt[i]
+        curr_alt = alt[i+1]
+        if math.isclose(prev_alt, curr_alt):
+            velz.append(prev_velz)
+        else:
+            dirz = 1 if (alt[i] <= alt[i+1]) else -1
+            #print((alt[i+1]-alt[i])*0.3048/dt*dirz)
+            prev_velz = (alt[i+1]-alt[i])*0.3048/dt*dirz
+            velz.append((alt[i+1]-alt[i])*0.3048/dt*dirz)
+
+    velx.append(velx[-1])
+    vely.append(vely[-1])
+    velz.append(velz[-1])
+    velz = velz[1:]
+    return [velx, vely, velz]
+
 
 def calc_velocity(filepath, filename):
     dt = 1 # to be changed later cuz were only sampling at 1Hz

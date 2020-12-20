@@ -4,7 +4,7 @@ import os
 import sys
 import numpy as np
 
-filename = os.path.join(sys.path[0], "csv/Sun Nov 15 18_02_39 2020.csv")
+filename = os.path.join(sys.path[0][:-7], "data/Data/Sun Nov 15 18_02_39 2020.csv")
 print(filename)
 
 df = pd.read_csv(filename)

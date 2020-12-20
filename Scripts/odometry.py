@@ -8,8 +8,43 @@ import numpy as np
 import matplotlib.pyplot as plt
 import json
 import utm
+import math
 
 from utils import *
+
+def get_xyz_poses_from_arr(vxs, vys, vzs, dt):
+    pos_x = []
+    pos_y = []
+    pos_z = []
+
+    #initial pose
+    pos_x.append(0)
+    pos_y.append(0)
+    pos_z.append(0)
+    prev_posx = 0
+    prev_posy = 0
+    prev_posz = 0
+    for i in range(len(vxs)-1):
+        prev_vx = vxs[i]
+        prev_vy = vys[i]
+        prev_vz = vzs[i]
+        curr_vx = vxs[i+1]
+        curr_vy = vys[i+1]
+        curr_vz = vzs[i+1]
+        if (math.isclose(prev_vx, curr_vx) and math.isclose(prev_vy, curr_vy) and math.isclose(prev_vz, curr_vz)):
+            pos_x.append(prev_posx)
+            pos_y.append(prev_posy)
+            pos_z.append(prev_posz)
+        else:
+            print(i)
+            prev_posx = pos_x[i] + vxs[i+1]*dt
+            prev_posy = pos_y[i] + vys[i+1]*dt
+            prev_posz = pos_z[i] + vzs[i+1]*dt
+            pos_x.append(pos_x[i] + vxs[i+1]*dt)
+            pos_y.append(pos_y[i] + vys[i+1]*dt)
+            pos_z.append(pos_z[i] + vzs[i+1]*dt)
+
+    return pos_x, pos_y, pos_z
 
 def get_vs_from_file(filename):
     """gets velocities from file
