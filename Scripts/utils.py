@@ -33,11 +33,14 @@ CSVIDXMAP = {
 def get_basepath():
     return sys.path[0][:-7]
 
-def plot2d(xys, labels, title, show_plots=True, savefig=False):
+def plot2d(xys, labels, title, colors=None, show_plots=True, savefig=False):
     mpl.rcParams['legend.fontsize'] = 10
     for i in range(len(xys)):
         xs, ys = xys[i]
-        plt.plot(xs, ys, label=labels[i])
+        if colors is None:
+            plt.plot(xs, ys, label=labels[i])
+        else:
+            plt.plot(xs, ys, c=colors[i], label=labels[i])
     plt.legend()
     plt.title(title)
     if savefig:

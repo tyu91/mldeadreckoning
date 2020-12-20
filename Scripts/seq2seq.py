@@ -7,6 +7,10 @@ import os
 import numpy as np
 import json
 import datetime
+from matplotlib import animation
+from matplotlib.collections import LineCollection
+from matplotlib.colors import ListedColormap, BoundaryNorm
+
 
 from odometry import *
 from utils import *
@@ -107,6 +111,7 @@ class Decoder(nn.Module):
         curr_embedded_output = self.embedding_layer(curr_output).unsqueeze(0)
 
         gt = ground_truth.squeeze(0) # shape is len x 1 x 2
+        used_gt = []
 
         for t in range(output_length):
             new_output, new_hidden = self.lstm(curr_embedded_output, curr_hidden)
@@ -114,12 +119,14 @@ class Decoder(nn.Module):
             gt_t = gt[t].unsqueeze(0)
             loss += self.loss_fn(new_raw_output, gt_t.float())
             if np.random.binomial(1, beta, 1)[0] == 1:
+                used_gt.append(True)
                 curr_embedded_output = self.embedding_layer(gt_t.float())
             else:
+                used_gt.append(False)
                 curr_embedded_output = self.embedding_layer(new_raw_output)
             curr_hidden = new_hidden
             predicted_output.append(new_raw_output.squeeze(0))
-        return predicted_output, loss
+        return predicted_output, loss, used_gt
 
 
 class DeadReckoningModel(nn.Module):
@@ -129,7 +136,7 @@ class DeadReckoningModel(nn.Module):
         :imu_freq (optional): imu frequency, default=50\n
         :gps_freq (optional): gps frequency.
     """
-    def __init__(self, dataset_csv, test_files, beta, train_percent, num_epochs, gps_dropout, imu_freq=200, gps_freq=1):
+    def __init__(self, dataset_csv, test_files, beta, train_percent, num_epochs, gps_dropout, anneal_beta, animate, imu_freq=200, gps_freq=1):
         super().__init__()
         
         self.basepath = get_basepath()
@@ -141,6 +148,8 @@ class DeadReckoningModel(nn.Module):
         self.train_percent = train_percent
         self.epochs = num_epochs
         self.gps_dropout = gps_dropout
+        self.anneal_beta = anneal_beta
+        self.animate = animate
 
         self.input_size = 400
         self.emb_size = 256
@@ -214,7 +223,7 @@ class DeadReckoningModel(nn.Module):
                 # Training pass
                 hidden = self.encoder.forward(sample)
                 gt = gt.squeeze(0)
-                predicted_output, loss = self.decoder.forward(hidden, len(sample), len(gt), gt, self.beta)
+                predicted_output, loss, _ = self.decoder.forward(hidden, len(sample), len(gt), gt, self.beta)
                 loss /= len(gt)
 
                 # compute accuracy (l2norm between predicted and ground truth position)
@@ -234,9 +243,72 @@ class DeadReckoningModel(nn.Module):
 
                 running_loss += loss.item()
                 running_acc += acc
+
+                if self.anneal_beta:
+                    self.beta = max(0.25, self.beta - (0.75 / self.epochs))
             else:
                 print(f"Epoch: {e} Training loss: {running_loss/len(self.train_dataloader)} Training accuracy: {running_acc/len(self.train_dataloader)}")
-    
+    '''
+    what do i want the animation to do:
+    every interval of 1000ms, append gt_x, gt_y, so on and so forth those predictions. and connect them.
+    '''
+    def animate_evaluation(self, gt_x, gt_y, pred_x, pred_y, imu_x, imu_y, used_gt, title):
+        fig = plt.figure()
+        c_gt_x, c_gt_y, c_pred_x, c_pred_y, c_imu_x, c_imu_y = [], [], [], [], [], []
+        cmap = ['green' if elem else 'red' for elem in used_gt]
+        ax1 = plt.axes(
+            xlim=(min(min(gt_x), min(pred_x), min(imu_x)) - 10, max(max(gt_x), max(pred_x), max(imu_x)) + 10), \
+            ylim=(min(min(gt_y), min(pred_y), min(imu_y)) - 10, max(max(gt_y), max(pred_y), max(imu_y)) + 10))
+        line, = ax1.plot([], [], lw=2)
+        line = LineCollection([], lw=2)
+        ax1.add_collection(line)
+        plt.xlabel('x (meters)')
+        plt.ylabel('y (meters)')
+
+        plotlays, plotcols, plotlabels = [3], ["black","green", "blue"], ["gt position", "predicted position", "imu position"]
+        lines = []
+        for index in range(3):
+            lobj = ax1.plot([],[],lw=2,color=plotcols[index])[0]
+            lines.append(lobj)
+
+        def init():
+            for line in lines:
+                line.set_data([], [])
+            return lines
+
+        def animate(i):
+            # c_gt_x.append(gt_x[i])
+            # c_gt_y.append(gt_y[i])
+            # c_pred_x.append(pred_x[i])
+            # c_pred_y.append(pred_y[i])
+            # c_imu_x.append(imu_x[i])
+            # c_imu_y.append(imu_y[i])
+            c_gt_x = [gt_x[i], gt_x[i+1]]
+            c_gt_y = [gt_y[i], gt_y[i+1]]
+            c_pred_x = [pred_x[i], pred_x[i+1]]
+            c_pred_y = [pred_y[i], pred_y[i+1]]
+            c_imu_x = [imu_x[i], imu_x[i+1]]
+            c_imu_y = [imu_y[i], imu_y[i+1]]
+
+            xlist = [c_gt_x, c_pred_x, c_imu_x]
+            ylist = [c_gt_y, c_pred_y, c_imu_y]
+
+            for lnum in range(3):
+                if lnum == 1:
+                    line, = ax1.plot(xlist[lnum], ylist[lnum], c=cmap[i])
+                else:
+                    line, = ax1.plot(xlist[lnum], ylist[lnum], c=plotcols[lnum])
+                lines.append(line)
+
+            return lines
+        
+        anim = animation.FuncAnimation(fig, animate, init_func=init, frames=len(gt_x)-1, interval=100, repeat=False)
+        plt.legend(lines, plotlabels)
+        plt.title(title)
+        plt.show()
+
+            
+
     def evaluate(self):
         """evaluate model on paths specified in self.test_tag_file"""
         with torch.no_grad():
@@ -244,7 +316,7 @@ class DeadReckoningModel(nn.Module):
                 # Training pass
                 hidden = self.encoder.forward(sample)
                 gt = gt.squeeze(0)
-                predicted_output, loss = self.decoder.forward(hidden, len(sample), len(gt), gt, 1.0-self.gps_dropout)
+                predicted_output, loss, used_gt = self.decoder.forward(hidden, len(sample), len(gt), gt, 1.0-self.gps_dropout)
                 loss /= len(gt)
 
                 # compute accuracy (l2norm between predicted and ground truth position)
@@ -263,17 +335,18 @@ class DeadReckoningModel(nn.Module):
                 pred_x, pred_y = np.array(pred_pos[:len(predicted_output)]), np.array(pred_pos[len(predicted_output):])
                 pred_xy = np.vstack([pred_x, pred_y]).T
                 
-
                 acc = np.mean(np.linalg.norm(pred_xy - gt_xy, axis=1))
 
                 # plot the results compared to regular transform
                 plot2d(
                         xys = [(gt_x, gt_y), (pred_x, pred_y), (imu_x, imu_y)],
                         labels=["ground truth gps", "predicted position based on imu", "original imu position with transformation"], 
-                        title=basename[0]
+                        title=basename[0],
+                        colors=["black", "green", "blue"]
                     )
-            else:
-                print(f"Test loss: {loss} Test accuracy: {acc}")
+                if animate:
+                    self.animate_evaluation(gt_x, gt_y, pred_x, pred_y, imu_x, imu_y, used_gt, basename[0])
+                print(f"{basename[0]}: Test loss: {loss} Test accuracy: {acc}")
 
     def save_model(self, modelname):
         if not os.path.exists(os.path.join(self.basepath, "models")):
@@ -289,16 +362,30 @@ if __name__ == "__main__":
     parser.add_argument('--dataset_csv', help="The dataset csv file to use, e.g. small_dataset.csv", action="store", required=True)
     parser.add_argument('--test_files', help="The dataset txt file to use, e.g. small_dataset_test_list.txt", action="store", required=True)
     parser.add_argument("--eval_model", help="specify which model to evaluate dataset with", action="store")
+    parser.add_argument("--gps_dropout", help="gps dropout value (default is 0, no dropout)", type=float, default=0.0)
+    parser.add_argument("--animate", help="animate gps prediction in realtime", action="store_true")
     
     args = parser.parse_args()
     train_mode = args.eval_model is None
 
-    beta = 0.5
-    train_percent = 0.8
+    beta = 1.0 # 1 is teacher forcing, 0 is model only
+    train_percent = 0.8 # unused 
     num_epochs = 100
-    gps_dropout = 0
+    gps_dropout = args.gps_dropout
+    print("gps dropout: ", gps_dropout)
+    anneal_beta = False
+    animate = args.animate
 
-    model = DeadReckoningModel(dataset_csv=args.dataset_csv, test_files=args.test_files, beta=beta, train_percent=train_percent, num_epochs=num_epochs, gps_dropout=gps_dropout)
+    model = DeadReckoningModel(
+        dataset_csv=args.dataset_csv, 
+        test_files=args.test_files, 
+        beta=beta, 
+        train_percent=train_percent, 
+        num_epochs=num_epochs, 
+        gps_dropout=gps_dropout, 
+        anneal_beta=anneal_beta,
+        animate=animate
+    )
 
     if train_mode:
         model.train()
