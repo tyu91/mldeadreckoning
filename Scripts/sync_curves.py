@@ -164,6 +164,7 @@ if __name__ == "__main__":
     parser.add_argument("--tag_files", help="label files and store labels in json", action="store_true")
     parser.add_argument("--show_plots", help="show plots of position curves", action="store_true")
     parser.add_argument("--save_plots", help="save plots to data/figures directory (WILL overwrite existing figures)", action="store_true")
+    parser.add_argument("--save_pos", help="save output gps position to csv", action="store_true")
     parser.add_argument("--is_50hz", help="use 50hz data (default is 200hz data)", action="store_true")
     parser.add_argument("--sanity_check", help="ensure that RANSAC algorithm works properly", action="store_true")
     
@@ -174,7 +175,9 @@ if __name__ == "__main__":
     save_plots = args.save_plots
     is_50hz = args.is_50hz
     sanity_check = args.sanity_check
+    save_pos = args.save_pos
 
+    hz = 50 if is_50hz else 200
     imu_dt = 1.0 / 50 if is_50hz else 1.0 / 200
     gps_dt = 1 if is_50hz else 1
 
@@ -202,7 +205,7 @@ if __name__ == "__main__":
         base_filename = imu_relative_path.split("_imu_")[0]
         gps_file = os.path.join(gps_vs_directory, base_filename + gps_vs_string)
 
-        imu_pxs, imu_pys, imu_pzs, gps_pxs, gps_pys, gps_pzs = compute_imu_gps_xyz_poses(
+        og_imu_pxs, og_imu_pys, og_imu_pzs, og_gps_pxs, og_gps_pys, og_gps_pzs = compute_imu_gps_xyz_poses(
                                                                                          base_filename, 
                                                                                          imu_file, gps_file, 
                                                                                          og_gps_directory, 
@@ -210,41 +213,53 @@ if __name__ == "__main__":
                                                                                          gps_dt
                                                                                         )
         interp_factor = 20
-        imu_pxs, imu_pys, imu_pzs = interpolate_xyz(imu_pxs, imu_pys, imu_pzs, len(gps_pxs) * interp_factor)
-        gps_pxs, gps_pys, gps_pzs = interpolate_xyz(gps_pxs, gps_pys, gps_pzs, len(gps_pxs) * interp_factor)
+        imu_pxs, imu_pys, imu_pzs = interpolate_xyz(og_imu_pxs, og_imu_pys, og_imu_pzs, len(og_gps_pxs) * interp_factor)
+        gps_pxs, gps_pys, gps_pzs = interpolate_xyz(og_gps_pxs, og_gps_pys, og_gps_pzs, len(og_gps_pxs) * interp_factor)
         if sanity_check:
             fake_transform = np.array([[0.5, -0.5, 3], [3, 1, 7], [0, 0, 1]])
             fake_imu =  np.random.rand(100, 2)  
             fake_gps = np.dot(fake_transform, np.hstack([fake_imu, np.ones((100, 1))]).T).T[:, :2]                                                                                                                                                
-            imu_pxs, imu_pys, gps_pxs, gps_pys = compute_affine_transformation(fake_imu[:, 0], fake_imu[:, 1], None, [fake_gps[:, 0]], [fake_gps[:, 1]], None)
+            new_imu_pxs, new_imu_pys, new_gps_pxs, new_gps_pys = compute_affine_transformation(fake_imu[:, 0], fake_imu[:, 1], None, [fake_gps[:, 0]], [fake_gps[:, 1]], None)
         else:
             new_imu_pxs, new_imu_pys, new_gps_pxs, new_gps_pys = compute_affine_transformation(imu_pxs, imu_pys, imu_pzs, gps_pxs, gps_pys, gps_pzs)
 
         assert(len(new_imu_pxs) == len(new_gps_pxs))
+        if args.save_pos:
+            # save gps position to data/gps_pos/
+            gps_output_filename = os.path.join(get_basepath(), "data", "gps_pos", base_filename + "_gps_pos.csv")
+            with open(gps_output_filename, "w") as gps_outfile:
+                writer = csv.writer(gps_outfile)
+                writer.writerow(["gxs", "gys"])
+                row = [list(elem) for elem in list(zip(og_gps_pxs, og_gps_pys))]
+                writer.writerows(row)
 
-        imu_t_new = np.arange(0, len(new_imu_pxs))
-        gps_t_new = np.arange(0, len(new_gps_pxs))
-
-        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(12,8)) # nrows = avr
-
-        ax1.plot(new_imu_pxs, new_imu_pys)
-        ax1.plot(new_gps_pxs, new_gps_pys)
-        # ax1.xlabel("m")
-        # ax1.ylabel("m")
-        ax1.set_title("with transformation")
-
-        ax2.plot(imu_pxs, imu_pys)
-        ax2.plot(gps_pxs, gps_pys)
-        # ax2.xlabel("m")
-        # ax2.ylabel("m")
-        ax2.set_title("without transformation")
+            # save imu position to data/imu_pos/
+            imu_output_filename = os.path.join(get_basepath(), "data", "imu_pos", base_filename + "_imu_pos.csv")
+            with open(imu_output_filename, "w") as imu_outfile:
+                writer = csv.writer(imu_outfile)
+                writer.writerow(["ixs", "iys"])
+                # interpolate imu data back up to 200Hz:
+                new_imu_pxs, new_imu_pys, _ = interpolate_xyz(new_imu_pxs, new_imu_pys, imu_pzs, len(og_gps_pxs) * hz)
+                row = [list(elem) for elem in list(zip(new_imu_pxs, new_imu_pys))]
+                writer.writerows(row)
 
         if save_plots:
-            plt.title(base_filename)
+            # save plot of with and without transformation
+            fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(12,8)) # nrows = avr
+
+            ax1.plot(new_imu_pxs, new_imu_pys)
+            ax1.plot(new_gps_pxs, new_gps_pys)
+            ax1.set_title("with transformation")
+
+            ax2.plot(imu_pxs, imu_pys)
+            ax2.plot(gps_pxs, gps_pys)
+            ax2.set_title("without transformation")
+
+            plt.suptitle(base_filename)
             filename = base_filename + ".png"
             full_filename = os.path.join(get_basepath(), "data", "figures", filename)
             fig.savefig(full_filename)
-        plt.close()
+            plt.close()
 
         # plot2d(
         #         xys=[(imu_pxs, imu_pys), (gps_pxs, gps_pys)],
