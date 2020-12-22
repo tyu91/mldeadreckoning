@@ -336,6 +336,7 @@ class DeadReckoningModel(nn.Module):
                 pred_xy = np.vstack([pred_x, pred_y]).T
                 
                 acc = np.mean(np.linalg.norm(pred_xy - gt_xy, axis=1))
+                imu_acc = np.mean(np.linalg.norm(imu_xy - gt_xy, axis=1))
 
                 # plot the results compared to regular transform
                 plot2d(
@@ -346,7 +347,7 @@ class DeadReckoningModel(nn.Module):
                     )
                 if animate:
                     self.animate_evaluation(gt_x, gt_y, pred_x, pred_y, imu_x, imu_y, used_gt, basename[0])
-                print(f"{basename[0]}: Test loss: {loss} Test accuracy: {acc}")
+                print(f"{basename[0]}: Test loss: {loss} Test accuracy: {acc} imu accuracy: {imu_acc}")
 
     def save_model(self, modelname):
         if not os.path.exists(os.path.join(self.basepath, "models")):
