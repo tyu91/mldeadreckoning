@@ -1,5 +1,7 @@
 # ML Dead Reckoning Project
 
+[Final Paper Here](https://drive.google.com/file/d/1PwHPx2KvXAljh7_QI2Pur6U6NxQBEW2Y/view?usp=sharing)
+
 Ensure you have the following data file structure before running:
 
 ### data
