@@ -13,6 +13,7 @@ In order to design, train, and validate our models, we need IMU data from a movi
 <p align="center">
     <img src="./images/hwsetup.png" width="200" />
 </p>
+
 #### Data Processing
 
 * **split the data into smaller segments when the vehicle is stationary:** This allows us to isolate specific maneuvers (i.e. turns, straights, etc), and also zero out IMU drift based on the stationary periods. 
@@ -39,7 +40,9 @@ In order to design, train, and validate our models, we need IMU data from a movi
 
 Through our methods, we were able to recover a vehicle position curve (green + red) from imu data (blue) that was far closer to the ground truth (black) than the imu data. The red segments on the predicted position line indicate segments of GPS outage, where our trained model is able to predict the vehicle's true position without any GPS data. As a note, the gif is running at 10x speed, and this trajectory represents a path we collected in a personal vehicle. 
 
-![demo](./images/gpsoutage.gif)
+<p align="center">
+<img src="./images/gpsoutage.gif" width="500"/>
+</p>
 
 ### Conclusion
 
