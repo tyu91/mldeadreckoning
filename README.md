@@ -13,6 +13,7 @@ In order to design, train, and validate our models, we need IMU data from a movi
 <p align="center">
     <img src="./images/hwsetup.png" width="200" />
 </p>
+
 #### Data Processing
 
 * **split the data into smaller segments when the vehicle is stationary:** This allows us to isolate specific maneuvers (i.e. turns, straights, etc), and also zero out IMU drift based on the stationary periods. 
